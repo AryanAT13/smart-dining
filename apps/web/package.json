@@ -1,0 +1,18 @@
+{
+  "name": "@smart-dining/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js 14 PWA — customer-facing UI. Phase 1 fills this in with App Router pages, SSE client, Zustand stores.",
+  "scripts": {
+    "dev": "echo \"[apps/web] Phase 1 scaffolds the Next.js app. Run 'pnpm dev' after Phase 1 to bring this online.\"",
+    "build": "echo \"[apps/web] noop until Phase 1\"",
+    "lint": "echo \"[apps/web] noop until Phase 1\"",
+    "typecheck": "echo \"[apps/web] noop until Phase 1\"",
+    "test": "echo \"[apps/web] noop until Phase 1\"",
+    "clean": "rm -rf .next .turbo"
+  },
+  "dependencies": {
+    "@smart-dining/core": "workspace:*",
+    "@smart-dining/shared": "workspace:*"
+  }
+}

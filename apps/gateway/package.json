@@ -1,0 +1,21 @@
+{
+  "name": "@smart-dining/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Socket.io WebSocket gateway. Runs as a Render Web Service. Phase 1 implements the handlers and Redis adapter.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "echo \"[apps/gateway] Phase 1 implements the Socket.io server. Run 'pnpm dev' after Phase 1.\"",
+    "build": "echo \"[apps/gateway] noop until Phase 1\"",
+    "start": "echo \"[apps/gateway] noop until Phase 1\"",
+    "lint": "echo \"[apps/gateway] noop until Phase 1\"",
+    "typecheck": "echo \"[apps/gateway] noop until Phase 1\"",
+    "test": "echo \"[apps/gateway] noop until Phase 1\"",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@smart-dining/core": "workspace:*",
+    "@smart-dining/shared": "workspace:*"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@smart-dining/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Types and Zod schemas shared between apps/web, apps/gateway, and packages/core. Zero runtime deps beyond Zod.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./events": "./src/events.ts",
+    "./intents": "./src/intents.ts",
+    "./schemas": "./src/schemas/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  }
+}

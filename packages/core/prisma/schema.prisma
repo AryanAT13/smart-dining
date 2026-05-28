@@ -1,0 +1,321 @@
+// =============================================================================
+// Smart Dining Assistant — Prisma schema
+//
+// Conventions:
+// - All snake_case column names mapped via @map; TS code stays camelCase.
+// - All timestamps in UTC; render-time tz adjustment is the UI's problem.
+// - Cascade deletes only where the child has no independent meaning (cart
+//   items, messages, agent traces). Orders intentionally do NOT cascade —
+//   we keep them around even after a session is purged.
+// - The `version` column on cart_items is the optimistic-concurrency token
+//   for cart conflict resolution (see ADR on real-time architecture).
+// - Embeddings live in a 1:1 sidecar table so we never need pgvector when
+//   selecting plain menu metadata.
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_DATABASE_URL")
+  extensions        = [pgvector(map: "vector"), uuidOssp(map: "uuid-ossp"), pgcrypto]
+}
+
+// =============================================================================
+// Menu domain
+// =============================================================================
+
+model MenuItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  /// Stable, URL-safe identifier (kebab-case). Natural key for seeding and admin tooling.
+  slug            String   @unique @db.VarChar(80)
+  name            String   @db.VarChar(120)
+  category        MenuCategory
+  price           Decimal  @db.Decimal(10, 2)
+  description     String   @db.VarChar(160)
+  imageUrl        String   @map("image_url") @db.Text
+  tags            String[] @default([])
+  allergens       String[] @default([])
+  available       Boolean  @default(true)
+  popularScore    Float    @default(0) @map("popular_score")
+  // Calorie estimate (rough; supports "light" filtering). Nullable when unknown.
+  caloriesKcal    Int?     @map("calories_kcal")
+  prepTimeMinutes Int?     @map("prep_time_minutes")
+  // GST rate as a decimal fraction (0.05 or 0.12). Applied at order time.
+  gstRate         Decimal  @default(0.05) @map("gst_rate") @db.Decimal(4, 4)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  embedding           MenuItemEmbedding?
+  cartItems           CartItem[]
+  orderItems          OrderItem[]
+  complementsAsSource Complement[]      @relation("ComplementSource")
+  complementsAsTarget Complement[]      @relation("ComplementTarget")
+
+  @@index([category])
+  @@index([available])
+  @@index([popularScore(sort: Desc)])
+  @@map("menu_items")
+}
+
+enum MenuCategory {
+  veg_starters
+  non_veg_starters
+  mains_veg
+  mains_non_veg
+  breads_rice
+  desserts
+  beverages_hot
+  beverages_cold
+  combos_deals
+
+  @@map("menu_category")
+}
+
+/// 1:1 sidecar so the heavy vector column doesn't bloat menu_items selects.
+/// Index choice: ivfflat with cosine ops, lists = sqrt(rowCount) (created in a
+/// post-migration step because Prisma can't yet express ivfflat parameters).
+model MenuItemEmbedding {
+  menuItemId String                       @id @map("menu_item_id") @db.Uuid
+  embedding  Unsupported("vector(1536)")
+  // Tracks which model produced this embedding — guards against drift if the
+  // model changes and embeddings need regenerating.
+  model      String                       @db.VarChar(40)
+  createdAt  DateTime                     @default(now()) @map("created_at")
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_item_embeddings")
+}
+
+/// Frequently-ordered-together graph. Source → target with a co-occurrence weight.
+/// Populated by an offline job (Phase 4) or seeded statically for demo.
+model Complement {
+  id       String @id @default(uuid()) @db.Uuid
+  sourceId String @map("source_id") @db.Uuid
+  targetId String @map("target_id") @db.Uuid
+  weight   Float  @default(1.0)
+
+  source MenuItem @relation("ComplementSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target MenuItem @relation("ComplementTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetId])
+  @@index([sourceId])
+  @@map("complements")
+}
+
+// =============================================================================
+// Session + cart domain (one tableId → one active session → many cart items)
+// =============================================================================
+
+model Session {
+  id                  String        @id @default(uuid()) @db.Uuid
+  tableId             String        @map("table_id") @db.VarChar(20)
+  status              SessionStatus @default(active)
+  /// JSON: { spicy?: bool, vegOnly?: bool, dairy?: bool, groupSize?: number, ... }
+  preferences         Json          @default("{}")
+  /// Rolling summary written by Context Memory Agent every 10 turns.
+  conversationSummary String?       @map("conversation_summary") @db.Text
+  /// Last detected language for tone-matching. 'en' | 'hinglish' | 'telugu-english'.
+  language            String?       @db.VarChar(20)
+  /// Optional long-term linkage (only after checkout, if user provided phone).
+  userId              String?       @map("user_id") @db.Uuid
+  createdAt           DateTime      @default(now()) @map("created_at")
+  expiresAt           DateTime      @map("expires_at")
+  closedAt            DateTime?     @map("closed_at")
+
+  user        User?        @relation(fields: [userId], references: [id])
+  cartItems   CartItem[]
+  messages    Message[]
+  orders      Order[]
+  agentTraces AgentTrace[]
+
+  @@index([tableId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+enum SessionStatus {
+  active
+  ordered
+  closed
+  expired
+
+  @@map("session_status")
+}
+
+model CartItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  sessionId           String   @map("session_id") @db.Uuid
+  menuItemId          String   @map("menu_item_id") @db.Uuid
+  quantity            Int      @default(1)
+  specialInstructions String?  @map("special_instructions") @db.VarChar(200)
+  /// Display name of the diner who added this item. "You" rendering is client-side.
+  addedBy             String   @map("added_by") @db.VarChar(50)
+  /// Optimistic-concurrency token. Incremented on every update.
+  /// Cart-conflict policy: last-write-wins, UI shows toast (see ADR-003).
+  version             Int      @default(1)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  session  Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([sessionId])
+  @@map("cart_items")
+}
+
+// =============================================================================
+// Conversation domain (durable backing for Redis session memory)
+// =============================================================================
+
+model Message {
+  id        String        @id @default(uuid()) @db.Uuid
+  sessionId String        @map("session_id") @db.Uuid
+  sender    MessageSender
+  text      String        @db.Text
+  /// Detected language at time of send. Useful for retrospective analysis.
+  language  String?       @db.VarChar(20)
+  /// Routed intent (RECOMMEND, ADD_ITEM, ...). Null for assistant turns.
+  intent    String?       @db.VarChar(40)
+  /// Arbitrary metadata: suggestion cards rendered, tool calls made, etc.
+  metadata  Json?
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  session     Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  agentTraces AgentTrace[]
+
+  @@index([sessionId, createdAt])
+  @@map("messages")
+}
+
+enum MessageSender {
+  user
+  assistant
+  system
+
+  @@map("message_sender")
+}
+
+// =============================================================================
+// Order domain (durable; intentionally outlives the session)
+// =============================================================================
+
+model Order {
+  id                   String      @id @default(uuid()) @db.Uuid
+  sessionId            String      @map("session_id") @db.Uuid
+  /// PII boundary: customer_name and customer_phone are the only place PII
+  /// lives at-rest. Never injected into LLM prompts. Phones are also hashed
+  /// (see customerPhoneHash) for indexing without exposing the plaintext.
+  customerName         String      @map("customer_name") @db.VarChar(100)
+  customerPhone        String      @map("customer_phone") @db.VarChar(15)
+  customerPhoneHash    String      @map("customer_phone_hash") @db.Char(64)
+  status               OrderStatus @default(pending)
+  subtotalAmount       Decimal     @map("subtotal_amount") @db.Decimal(10, 2)
+  taxAmount            Decimal     @map("tax_amount") @db.Decimal(10, 2)
+  totalAmount          Decimal     @map("total_amount") @db.Decimal(10, 2)
+  estimatedWaitMinutes Int?        @map("estimated_wait_minutes")
+  /// Free-text notes from the validation agent (e.g. "swap out X for Y").
+  notes                String?     @db.VarChar(300)
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  session Session     @relation(fields: [sessionId], references: [id])
+  items   OrderItem[]
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([customerPhoneHash])
+  @@index([createdAt(sort: Desc)])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready
+  delivered
+  cancelled
+
+  @@map("order_status")
+}
+
+model OrderItem {
+  id                  String  @id @default(uuid()) @db.Uuid
+  orderId             String  @map("order_id") @db.Uuid
+  menuItemId          String  @map("menu_item_id") @db.Uuid
+  /// Snapshot fields — keep the order historically meaningful even if the
+  /// menu item is renamed, repriced, or deleted.
+  nameSnapshot        String  @map("name_snapshot") @db.VarChar(120)
+  priceSnapshot       Decimal @map("price_snapshot") @db.Decimal(10, 2)
+  gstRateSnapshot     Decimal @map("gst_rate_snapshot") @db.Decimal(4, 4)
+  quantity            Int
+  specialInstructions String? @map("special_instructions") @db.VarChar(200)
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// =============================================================================
+// Long-term memory (Tier 3 of ADR-006) — opt-in, phone-keyed
+// =============================================================================
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// HMAC-SHA256 of E.164 phone with PII_HASH_SECRET. Never the plaintext.
+  phoneHash    String   @unique @map("phone_hash") @db.Char(64)
+  displayName  String?  @map("display_name") @db.VarChar(100)
+  /// Merged preferences across all known sessions.
+  preferences  Json     @default("{}")
+  visitCount   Int      @default(0) @map("visit_count")
+  lastVisitAt  DateTime? @map("last_visit_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions Session[]
+
+  @@map("users")
+}
+
+// =============================================================================
+// Observability — every agent invocation is traced (powers /debug/trace)
+// =============================================================================
+
+model AgentTrace {
+  id          String   @id @default(uuid()) @db.Uuid
+  sessionId   String   @map("session_id") @db.Uuid
+  messageId   String?  @map("message_id") @db.Uuid
+  agentName   String   @map("agent_name") @db.VarChar(40)
+  model       String   @db.VarChar(40)
+  temperature Float
+  tokensIn    Int      @map("tokens_in")
+  tokensOut  Int      @map("tokens_out")
+  latencyMs   Int      @map("latency_ms")
+  /// Structured input: { state, prompt-fragments, retrieved-context }.
+  input       Json
+  /// Structured output: agent's parsed result before formatter validation.
+  output      Json
+  /// Tool calls made during this invocation, in order.
+  toolCalls   Json     @default("[]") @map("tool_calls")
+  /// Stringified error if the invocation failed; null on success.
+  error       String?  @db.Text
+  /// Estimated USD cost. Used for the per-session budget cap.
+  costUsd     Decimal? @map("cost_usd") @db.Decimal(10, 6)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, createdAt])
+  @@index([agentName])
+  @@map("agent_traces")
+}

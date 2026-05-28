@@ -1,0 +1,73 @@
+%% Smart Dining Assistant — system architecture
+%% Render with the Mermaid CLI: mmdc -i architecture.mmd -o architecture.svg
+graph TB
+    subgraph Client["Mobile PWA — Next.js 14 on Vercel"]
+        UI[UI Layer<br/>MenuGrid · CartDrawer · AIChat · GroupBanner]
+        State[State<br/>Zustand · TanStack Query]
+        SSE[SSE Client<br/>EventSource]
+        WS[Socket.io Client]
+    end
+
+    subgraph Vercel["Vercel — Next.js Route Handlers"]
+        API[REST endpoints<br/>/api/menu · /api/session · /api/order · /api/otp]
+        Stream[SSE endpoint<br/>/api/session/:id/ai/stream]
+    end
+
+    subgraph Render["Render Web Service — Socket.io Gateway"]
+        Gateway[Socket.io Server<br/>Redis Adapter]
+    end
+
+    subgraph Core["packages/core — shared TypeScript module"]
+        Orchestrator[LangGraph Orchestrator<br/>router → specialists → memory → formatter]
+        Agents[8 Agents<br/>greeter · multilingualNLU · recommendation · upsell<br/>contextMemory · groupCoordinator · sentiment · orderValidation]
+        Tools[Tool Registry<br/>search_menu · add_to_cart · get_popular · ...]
+        Services[Services<br/>menu · session · order · otp]
+    end
+
+    subgraph Data["Data Layer"]
+        Postgres[(Render Postgres 16<br/>+ pgvector extension)]
+        Redis[(Render Key-Value<br/>sessions · carts · pub/sub)]
+        R2[Cloudflare R2<br/>menu images]
+    end
+
+    subgraph External["External APIs"]
+        OpenAI[OpenAI<br/>gpt-4o · gpt-4o-mini · embeddings]
+        Twilio[Twilio Verify<br/>OTP]
+        LangSmith[LangSmith<br/>agent traces]
+    end
+
+    UI --> State
+    State --> SSE
+    State --> WS
+    SSE -->|HTTPS| Stream
+    State -->|HTTPS| API
+    WS -->|WSS| Gateway
+
+    API --> Services
+    Stream --> Orchestrator
+    Orchestrator --> Agents
+    Agents --> Tools
+    Tools --> Services
+    Gateway --> Services
+    Gateway -.subscribe.-> Redis
+
+    Services --> Postgres
+    Services --> Redis
+    Services --> R2
+    Orchestrator -.traces.-> LangSmith
+    Agents --> OpenAI
+    Services --> Twilio
+
+    classDef client fill:#e3f2fd,stroke:#1976d2
+    classDef vercel fill:#f5f5f5,stroke:#000
+    classDef render fill:#e8f5e9,stroke:#2e7d32
+    classDef core fill:#fff3e0,stroke:#e65100
+    classDef data fill:#fce4ec,stroke:#c2185b
+    classDef external fill:#f3e5f5,stroke:#6a1b9a
+
+    class UI,State,SSE,WS client
+    class API,Stream vercel
+    class Gateway render
+    class Orchestrator,Agents,Tools,Services core
+    class Postgres,Redis,R2 data
+    class OpenAI,Twilio,LangSmith external

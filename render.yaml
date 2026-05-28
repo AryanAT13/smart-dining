@@ -1,0 +1,107 @@
+# =============================================================================
+# Render Blueprint — single-source deployment manifest.
+# `render blueprint launch` (or "Connect from GitHub" in dashboard) reads this.
+#
+# Topology:
+#   - gateway (Web Service) — Socket.io server, pinned region: oregon
+#   - dining-db (Postgres)  — pgvector preinstalled on Render's Postgres 16
+#   - dining-cache (Key-Value, Redis-compatible)
+#
+# Next.js app deploys to Vercel separately; it consumes the same DATABASE_URL
+# and REDIS_URL via Vercel project envs (not declared here).
+# =============================================================================
+
+databases:
+  - name: dining-db
+    plan: starter
+    region: oregon
+    postgresMajorVersion: '16'
+    # pgvector is enabled at the schema level (see prisma/schema.prisma
+    # `extensions = [pgvector]`). No manual DDL needed.
+
+services:
+  - type: keyvalue
+    name: dining-cache
+    plan: starter
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  - type: web
+    name: gateway
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: apps/gateway
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @smart-dining/gateway... build
+    startCommand: pnpm --filter @smart-dining/gateway start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GATEWAY_PORT
+        value: '10000' # Render maps $PORT → 10000
+      - key: GATEWAY_CORS_ORIGIN
+        sync: false # set per environment from Vercel domain
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dining-db
+          property: connectionString
+      - key: DIRECT_DATABASE_URL
+        fromDatabase:
+          name: dining-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: dining-cache
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: LANGCHAIN_API_KEY
+        sync: false
+      - key: LANGCHAIN_TRACING_V2
+        value: 'true'
+      - key: LANGCHAIN_PROJECT
+        value: smart-dining-prod
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: LLM_MODEL_FAST
+        value: gpt-4o-mini
+      - key: LLM_MODEL_DEEP
+        value: gpt-4o
+      - key: SESSION_LLM_BUDGET_USD
+        value: '1.50'
+      - key: OTP_PROVIDER
+        value: twilio
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_VERIFY_SERVICE_SID
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PII_HASH_SECRET
+        generateValue: true
+      - key: RATE_LIMIT_GLOBAL_PER_MIN
+        value: '60'
+      - key: RATE_LIMIT_AI_PER_MIN
+        value: '20'
+      - key: RESTAURANT_NAME
+        value: Zaika
+      - key: ASSISTANT_NAME
+        value: Zara
+      - key: RESTAURANT_TIMEZONE
+        value: Asia/Kolkata
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: smart-dining-menu
+      - key: R2_PUBLIC_URL
+        sync: false

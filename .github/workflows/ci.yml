@@ -1,0 +1,156 @@
+# =============================================================================
+# CI — lint, typecheck, test, eval.
+#
+# Eval is intentionally a separate job (not part of `test`) because it hits
+# the real OpenAI API and requires secrets. It runs on pushes to `main` and
+# on PRs labelled `run-eval` to keep cost predictable. Results are committed
+# back to docs/eval-results.md by a follow-up job in Phase 4.
+# =============================================================================
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: '9.12.0'
+  NODE_VERSION: '20.11.0'
+
+jobs:
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+  lint:
+    name: Lint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+
+  typecheck:
+    name: Typecheck
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm typecheck
+
+  test:
+    name: Test (unit + integration)
+    needs: install
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: dining
+          POSTGRES_PASSWORD: dining
+          POSTGRES_DB: dining_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U dining"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://dining:dining@localhost:5432/dining_test?schema=public
+      DIRECT_DATABASE_URL: postgresql://dining:dining@localhost:5432/dining_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      OPENAI_API_KEY: test-placeholder
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_GATEWAY_URL: http://localhost:4000
+      GATEWAY_CORS_ORIGIN: http://localhost:3000
+      R2_PUBLIC_URL: http://localhost:3000/menu-images
+      JWT_SECRET: ci-only-jwt-secret-please-rotate-in-prod-32b
+      PII_HASH_SECRET: ci-only-pii-secret-please-rotate-in-prod-32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm --filter @smart-dining/core prisma:migrate
+      - run: pnpm test
+
+  eval:
+    name: AI eval (golden cases)
+    needs: install
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-eval')
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      LANGCHAIN_TRACING_V2: 'true'
+      LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+      LANGCHAIN_PROJECT: smart-dining-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm eval
+        # Eval suite lands in Phase 2. Until then this is a no-op script
+        # that exits 0 (defined in packages/core/package.json).
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: docs/eval-results.md
+          if-no-files-found: ignore
