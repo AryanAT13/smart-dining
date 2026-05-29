@@ -73,14 +73,17 @@ pnpm dev
 # Open http://localhost:3000/table/T1
 ```
 
-### Manual verify — full ordering flow (no AI yet)
+### Manual verify — full ordering flow with AI
 
 1. Open `http://localhost:3000/table/T1` in two browser windows. Set different display names ("Priya" and "Rahul") when prompted.
-2. In window 1, add Paneer Tikka. Window 2's cart drawer lights up with the same item and an "Added by Priya" badge.
-3. In window 2, bump the Paneer Tikka quantity to 2. Window 1 reflects it within ~200ms.
-4. In window 1, tap "Place order", fill the form (any name + a phone like `+919876543210`).
-5. The mock OTP provider responds with `123456`. Enter it.
-6. Order confirmation appears with the estimated wait. The cart clears in both windows.
+2. **Chat**: tap "Ask Zara". Try `thoda spicy chahiye, dairy se allergy hai` — Zara replies in Hinglish with 1-3 candidates from the actual menu, never anything outside it.
+3. **Quick intents**: tap the "Spicy" or "Bestsellers" chip — Zara streams a response live (you see the agent-progress narration "Searching the menu…", "Picking the best matches…").
+4. **Add from chat**: tap the "+" on a suggestion card — the cart drawer pops with the new item; window 2 sees it within ~200ms with an "Added by Priya" badge.
+5. **Upsell**: a moment after the add, an assistant message arrives in chat suggesting a complement (e.g. Mint Chutney after Chilli Chicken Bites). This is the Upsell Agent firing on the `cart:item_added` event.
+6. **Group**: from window 2, ask `we are 4 people, mix veg and non-veg` — the Group Coordinator Agent splits suggestions into veg / non-veg slots.
+7. **Checkout**: tap "Place Order" → name → phone (`+919876543210`) → OTP `123456` → confirmation. Both windows see the cart clear.
+
+The whole agent trace for each turn is persisted to `agent_traces` and visible at `/api/debug/trace/<sessionId>` (demo mode only).
 
 ## Scripts
 
@@ -134,6 +137,32 @@ This README is alive — sections fill in as phases land. Current phase: **1 (en
 | ----- | ------------------------------------------------------------ | ------ |
 | 0     | Monorepo, configs, schema, ADRs, deploy manifests            | done   |
 | 1     | End-to-end skeleton: menu, cart, WS sync, OTP, order         | done   |
-| 2     | AI core: 8 agents, LangGraph orchestrator, RAG, SSE          | next   |
-| 3     | Polish, group features, sentiment, long-term memory          | queued |
-| 4     | Eval suite, observability dashboard, deploy, submission docs | queued |
+| 2     | AI core: 8 agents, orchestrator, RAG, SSE streaming, upsell  | done   |
+| 3     | Polish, /debug/trace UI, long-term memory tier               | next   |
+| 4     | Full eval harness, deploy, Loom walkthrough, submission docs | queued |
+
+## AI surface (Phase 2)
+
+Eight agents, one orchestrator:
+
+| Agent              | Role                                                  | Model       | Inputs |
+| ------------------ | ----------------------------------------------------- | ----------- | ------ |
+| multilingualNLU    | Normalise raw input → structured intent/prefs/lang    | gpt-4o-mini | text |
+| router             | Classify into one of 10 intents                       | gpt-4o-mini | gloss + session signals |
+| greeter            | First-message welcome + quick-tap chips               | gpt-4o-mini | displayName + tod |
+| recommendation     | RAG over `menu_item_embeddings` → 1-3 picks           | gpt-4o      | gloss + candidates |
+| upsell             | Triggered by `cart:item_added` events, not user msgs  | gpt-4o-mini | trigger + complements |
+| contextMemory      | Persists merged prefs; rolling summary every 10 turns | deterministic + gpt-4o-mini for summary | session state |
+| groupCoordinator   | Veg / non-veg balance for multi-person intents        | gpt-4o      | participants + dual candidate sets |
+| sentiment          | Parallel background classifier; drives tone hints     | gpt-4o-mini | text |
+| orderValidation    | Pre-checkout stock + totals (deterministic)           | deterministic + gpt-4o-mini for rejection phrasing | session |
+
+Each agent ships `index.ts` + `prompt.ts` + `schema.ts` + `golden.ts` under `packages/core/src/agents/<name>/`. See [`docs/agent-design.md`](docs/agent-design.md).
+
+### Tool registry
+
+The orchestrator calls into 9 typed tools (search_menu, get_cart, add_to_cart, …) through `packages/core/src/tools/registry.ts`. Each tool declares an allowlist of agents that may invoke it, and `sessionId`/`tableId` come from the orchestrator context — never from LLM-produced arguments. This is the prompt-injection firewall.
+
+### Trace observability
+
+Every agent invocation writes an `agent_traces` row with input/output previews, tool calls, latency, tokens, and cost. In demo mode, `GET /api/debug/trace/<sessionId>` returns the full trace timeline — perfect for the Loom walkthrough.
