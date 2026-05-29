@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme — warm restaurant palette. */
+    --background: 36 33% 97%;
+    --foreground: 24 16% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 16% 12%;
+
+    --primary: 16 84% 48%;          /* spice red — primary CTAs */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 36 33% 92%;
+    --secondary-foreground: 24 16% 12%;
+
+    --muted: 36 20% 90%;
+    --muted-foreground: 24 10% 38%;
+
+    --accent: 33 92% 92%;
+    --accent-foreground: 24 16% 12%;
+
+    --destructive: 0 76% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 24 12% 86%;
+    --input: 24 12% 86%;
+    --ring: 16 84% 48%;
+
+    --spice: 16 84% 48%;
+    --spice-foreground: 0 0% 100%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 24 16% 10%;
+    --foreground: 36 33% 96%;
+
+    --card: 24 16% 13%;
+    --card-foreground: 36 33% 96%;
+
+    --primary: 16 84% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 24 12% 18%;
+    --secondary-foreground: 36 33% 96%;
+
+    --muted: 24 12% 18%;
+    --muted-foreground: 36 12% 65%;
+
+    --accent: 24 12% 22%;
+    --accent-foreground: 36 33% 96%;
+
+    --destructive: 0 76% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 24 12% 22%;
+    --input: 24 12% 22%;
+    --ring: 16 84% 55%;
+
+    --spice: 16 84% 55%;
+    --spice-foreground: 0 0% 100%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Mobile-first: stop overscroll bounce on iOS. */
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe-area padding for notched devices. */
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .pt-safe {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+}
+
+/* Utility used by MenuCard to bias the "Add" button to be 44px+ on mobile. */
+@layer utilities {
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
