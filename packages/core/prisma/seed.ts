@@ -159,11 +159,19 @@ async function main(): Promise<void> {
   console.info(`[seed] Upserted ${edgeCount} complement edges.`);
 
   // Stage 3: embeddings.
-  // Activated in Phase 1 when packages/core/src/services/menu/embeddings.ts lands.
-  console.warn(
-    '[seed] Embeddings pipeline not yet wired — menu_item_embeddings is empty.\n' +
-      '       Recommendation Agent will fall back to popular_score ranking until Phase 1.',
-  );
+  if (!process.env['OPENAI_API_KEY'] || process.env['OPENAI_API_KEY'] === 'sk-dummy-key-for-now') {
+    console.warn(
+      '[seed] OPENAI_API_KEY not set (or placeholder) — skipping embeddings step.\n' +
+        '       Set a real key and re-run seed to populate menu_item_embeddings.',
+    );
+  } else {
+    // Dynamic import keeps the seed runnable in Phase 0 builds where the
+    // llm module may not yet exist.
+    const { refreshAllEmbeddings } = await import('../src/llm/embeddings.js');
+    const stats = await refreshAllEmbeddings(prisma);
+    console.info(`[seed] Embeddings: ${stats.embedded} embedded, ${stats.skipped} skipped, ${stats.failed} failed.`);
+    console.info(`[seed] Estimated embedding cost: $${stats.estimatedCostUsd.toFixed(4)}`);
+  }
 
   await prisma.$disconnect();
 }
