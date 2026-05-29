@@ -32,8 +32,10 @@ services:
     runtime: node
     plan: starter
     region: oregon
-    rootDir: apps/gateway
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @smart-dining/gateway... build
+    # Build from the workspace root so pnpm sibling resolution works. Using
+    # `rootDir: apps/gateway` would orphan the @smart-dining/core and
+    # @smart-dining/shared workspace packages.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @smart-dining/core prisma:generate && pnpm --filter @smart-dining/shared build && pnpm --filter @smart-dining/core build && pnpm --filter @smart-dining/gateway build
     startCommand: pnpm --filter @smart-dining/gateway start
     healthCheckPath: /healthz
     autoDeploy: true

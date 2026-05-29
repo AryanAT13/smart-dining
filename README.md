@@ -47,7 +47,7 @@ Read these before touching the code — they explain why the shape is what it is
 
 ## Local development
 
-**Prerequisites:** Node 20+, pnpm 9+, Docker.
+**Prerequisites:** Node 20+, pnpm 9+, Docker, OpenAI API key (free tier is fine).
 
 ```bash
 # 1. Clone and install
@@ -59,17 +59,28 @@ pnpm infra:up
 
 # 3. Configure environment
 cp .env.example .env
-# Fill OPENAI_API_KEY at minimum. Everything else has working defaults.
+# At minimum: set OPENAI_API_KEY to a real key (the seed embeds menu items).
+# Everything else has working defaults.
 
-# 4. Migrate and seed
-pnpm db:migrate
-pnpm db:seed          # menu items + embeddings + sample popular_score
+# 4. Generate Prisma client, migrate, seed
+pnpm db:generate
+pnpm db:migrate            # creates the schema + applies pgvector index
+pnpm db:seed               # loads 41 menu items, complement graph, embeddings
 
 # 5. Run web + gateway together
 pnpm dev
 # Web on :3000, gateway on :4000
 # Open http://localhost:3000/table/T1
 ```
+
+### Manual verify — full ordering flow (no AI yet)
+
+1. Open `http://localhost:3000/table/T1` in two browser windows. Set different display names ("Priya" and "Rahul") when prompted.
+2. In window 1, add Paneer Tikka. Window 2's cart drawer lights up with the same item and an "Added by Priya" badge.
+3. In window 2, bump the Paneer Tikka quantity to 2. Window 1 reflects it within ~200ms.
+4. In window 1, tap "Place order", fill the form (any name + a phone like `+919876543210`).
+5. The mock OTP provider responds with `123456`. Enter it.
+6. Order confirmation appears with the estimated wait. The cart clears in both windows.
 
 ## Scripts
 
@@ -117,12 +128,12 @@ smart-dining/
 
 ## Status
 
-This README is alive — sections fill in as phases land. Current phase: **0 (foundations)**.
+This README is alive — sections fill in as phases land. Current phase: **1 (end-to-end skeleton complete)**.
 
-| Phase | Scope                                                        | Status      |
-| ----- | ------------------------------------------------------------ | ----------- |
-| 0     | Monorepo, configs, schema, ADRs, deploy manifests            | in progress |
-| 1     | End-to-end skeleton: menu, cart, WS sync, OTP, order         | pending     |
-| 2     | AI core: 8 agents, LangGraph orchestrator, RAG, SSE          | pending     |
-| 3     | Polish, group features, sentiment, long-term memory          | pending     |
-| 4     | Eval suite, observability dashboard, deploy, submission docs | pending     |
+| Phase | Scope                                                        | Status |
+| ----- | ------------------------------------------------------------ | ------ |
+| 0     | Monorepo, configs, schema, ADRs, deploy manifests            | done   |
+| 1     | End-to-end skeleton: menu, cart, WS sync, OTP, order         | done   |
+| 2     | AI core: 8 agents, LangGraph orchestrator, RAG, SSE          | next   |
+| 3     | Polish, group features, sentiment, long-term memory          | queued |
+| 4     | Eval suite, observability dashboard, deploy, submission docs | queued |
