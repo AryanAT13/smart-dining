@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { cartService } from '@smart-dining/core/services';
+import { triggerPostAddUpsell } from '@smart-dining/core';
 import { AddCartItemRequestSchema } from '@smart-dining/shared';
 
 import { jsonOk, parseBody, withErrors } from '@/lib/server/route';
@@ -27,5 +28,15 @@ export const POST = withErrors<{ id: string }>(async (req, { params }) => {
       ? { specialInstructions: body.specialInstructions }
       : {}),
   });
+
+  // Fire-and-forget upsell trigger. Never await — must not slow the response.
+  void triggerPostAddUpsell({
+    sessionId: id,
+    tableId: cart.tableId,
+    addedBy: body.addedBy,
+    addedMenuItemId: addedLine.menuItem.id,
+    addedMenuItemName: addedLine.menuItem.name,
+  });
+
   return jsonOk({ cart, addedLine }, { status: 201 });
 });

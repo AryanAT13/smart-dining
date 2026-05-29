@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import type { MenuItemDto } from '@smart-dining/shared';
 
 import { CartDrawer } from '@/components/cart/CartDrawer';
+import { AIChat } from '@/components/chat/AIChat';
 import { GroupBanner } from '@/components/group/GroupBanner';
 import { OnboardingDialog } from '@/components/layout/OnboardingDialog';
 import { MenuGrid } from '@/components/menu/MenuGrid';
@@ -93,6 +94,7 @@ export function TableShell({ tableId }: { tableId: string }) {
       )}
 
       <OnboardingDialog />
+      <AIChat />
       <CartDrawer />
     </main>
   );
