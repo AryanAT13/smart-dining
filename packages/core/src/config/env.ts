@@ -123,7 +123,12 @@ const EnvSchema = z
       });
     }
 
-    if (cfg.NODE_ENV === 'production' && cfg.NEXT_PUBLIC_DEMO_MODE) {
+    // Next.js sets NODE_ENV=production during `next build` even when the dev
+    // .env still has demo mode on — that's the static-analysis phase, not a
+    // running production server. Skip the guard during the build phase so
+    // `pnpm build` doesn't fail locally.
+    const inNextBuild = process.env['NEXT_PHASE'] === 'phase-production-build';
+    if (cfg.NODE_ENV === 'production' && cfg.NEXT_PUBLIC_DEMO_MODE && !inNextBuild) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['NEXT_PUBLIC_DEMO_MODE'],

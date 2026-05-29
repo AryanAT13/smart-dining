@@ -30,11 +30,22 @@ interface VerifyTokenRecord {
 }
 
 export class OtpService {
-  private readonly provider: OtpProvider;
+  // Lazy provider so the singleton constructed at module load doesn't touch
+  // env-dependent paths until first use. Critical for Next.js build phase
+  // where route modules are loaded for static analysis but never called.
+  private _provider: OtpProvider | null;
+  private readonly providerOverride: OtpProvider | undefined;
 
   constructor(provider?: OtpProvider) {
-    this.provider = provider ?? pickProvider();
-    log.info({ provider: this.provider.name }, 'otp service ready');
+    this.providerOverride = provider;
+    this._provider = provider ?? null;
+  }
+
+  private get provider(): OtpProvider {
+    if (this._provider) return this._provider;
+    this._provider = this.providerOverride ?? pickProvider();
+    log.info({ provider: this._provider.name }, 'otp service ready');
+    return this._provider;
   }
 
   async send(phoneE164: string): Promise<SendOtpResult> {

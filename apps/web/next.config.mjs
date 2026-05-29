@@ -4,12 +4,23 @@ const nextConfig = {
   poweredByHeader: false,
   // Workspace packages ship as TS source; Next must transpile them.
   transpilePackages: ['@smart-dining/core', '@smart-dining/shared'],
-  // The Recommendation Agent imports prisma; let Next leave it as a real
-  // server-side module instead of bundling.
-  serverExternalPackages: ['@prisma/client', '.prisma/client', 'pino', 'pino-pretty'],
+  // Resolve ESM-correct `.js` imports inside our TS workspace packages back
+  // to their `.ts` source. TypeScript with `moduleResolution: "Bundler"` does
+  // this natively; webpack doesn't, hence the explicit alias.
+  webpack: (config) => {
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias ?? {}),
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      '.mjs': ['.mts', '.mjs'],
+      '.cjs': ['.cts', '.cjs'],
+    };
+    return config;
+  },
   experimental: {
-    // Required because @smart-dining/core uses Prisma which doesn't bundle well.
-    serverComponentsExternalPackages: ['@prisma/client', '.prisma/client'],
+    // Prisma + pino don't bundle cleanly; treat as Node externals on the
+    // server side. (Top-level `serverExternalPackages` is Next 15 only —
+    // we're on 14.2 which exposes this only under `experimental`.)
+    serverComponentsExternalPackages: ['@prisma/client', '.prisma/client', 'pino', 'pino-pretty'],
   },
   images: {
     remotePatterns: [
