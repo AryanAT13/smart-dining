@@ -16,3 +16,19 @@ export { redis, redisPub, redisSub, keys, channels } from './db/redis.js';
 export * from './lib/index.js';
 export * from './llm/index.js';
 export * from './services/index.js';
+export * from './memory/index.js';
+export { toolRegistry, ensureToolsRegistered, type ToolDefinition } from './tools/index.js';
+export type { AgentContext, ToolTraceEntry } from './tools/context.js';
+export {
+  runOrchestrator,
+  OrchestratorEmitter,
+  initialState,
+  persistTraces,
+  previewForTrace,
+  triggerPostAddUpsell,
+  type RunOptions,
+  type OrchestratorInput,
+  type OrchestratorState,
+  type AgentTraceRecord,
+  type PostAddUpsellArgs,
+} from './orchestrator/index.js';
