@@ -23,6 +23,11 @@ export function OrderConfirmation({ order, onClose }: OrderConfirmationProps) {
         <p className="mt-1 text-sm text-muted-foreground">
           Order #{order.id.slice(0, 8).toUpperCase()}
         </p>
+        {order.isReturnVisit && (
+          <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+            👋 Welcome back — visit #{order.visitCount}
+          </p>
+        )}
       </div>
 
       {order.estimatedWaitMinutes !== null && (

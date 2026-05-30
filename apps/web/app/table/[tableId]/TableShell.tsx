@@ -9,6 +9,7 @@ import { CartDrawer } from '@/components/cart/CartDrawer';
 import { AIChat } from '@/components/chat/AIChat';
 import { GroupBanner } from '@/components/group/GroupBanner';
 import { OnboardingDialog } from '@/components/layout/OnboardingDialog';
+import { AIPickStrip } from '@/components/menu/AIPickStrip';
 import { MenuGrid } from '@/components/menu/MenuGrid';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAddCartItem } from '@/lib/hooks/useCart';
@@ -86,11 +87,14 @@ export function TableShell({ tableId }: { tableId: string }) {
           </div>
         </div>
       ) : (
-        <MenuGrid
-          items={menuQuery.data.items}
-          popular={popularQuery.data?.items ?? []}
-          onAdd={onAdd}
-        />
+        <>
+          {hasOnboarded && <AIPickStrip sessionId={sessionQuery.data.session.id} />}
+          <MenuGrid
+            items={menuQuery.data.items}
+            popular={popularQuery.data?.items ?? []}
+            onAdd={onAdd}
+          />
+        </>
       )}
 
       <OnboardingDialog />
