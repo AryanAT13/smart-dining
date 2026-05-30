@@ -14,6 +14,7 @@ import type {
   PlaceOrderRequest,
   SendOtpRequest,
   UpdateCartItemRequest,
+  UserPreferences,
   VerifyOtpRequest,
 } from '@smart-dining/shared';
 
@@ -57,6 +58,16 @@ export const sessionKeys = {
 
 export function fetchSessionForTable(tableId: string): Promise<{ session: SessionDto }> {
   return api(`/api/table/${encodeURIComponent(tableId)}/session`);
+}
+
+export function updateSessionPreferences(
+  sessionId: string,
+  preferences: UserPreferences,
+): Promise<{ preferences: Record<string, unknown>; language: string | null }> {
+  return api(`/api/session/${sessionId}/preferences`, {
+    method: 'POST',
+    body: JSON.stringify({ preferences }),
+  });
 }
 
 // ---------------------------------------------------------------------------

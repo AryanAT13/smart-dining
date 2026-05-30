@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Activity } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect } from 'react';
 
 import type { MenuItemDto } from '@smart-dining/shared';
@@ -73,6 +74,18 @@ export function TableShell({ tableId }: { tableId: string }) {
             </p>
             <h1 className="font-display text-2xl">Welcome to your table</h1>
           </div>
+          {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && sessionQuery.data && (
+            <Link
+              href={`/debug/trace/${sessionQuery.data.session.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              title="Open the agent trace timeline for this session"
+            >
+              <Activity className="h-3 w-3" />
+              Trace
+            </Link>
+          )}
         </div>
         <GroupBanner tableId={tableId.toUpperCase()} />
       </header>
