@@ -25,6 +25,10 @@ export interface OrderView {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Long-term memory signal: 1 = first visit, 2+ = return diner. */
+  visitCount: number;
+  /** True if Tier-3 prefs were merged into this order's user row. */
+  isReturnVisit: boolean;
 }
 
 export interface PlaceOrderInput {

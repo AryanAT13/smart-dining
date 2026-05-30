@@ -32,3 +32,18 @@ export {
   type AgentTraceRecord,
   type PostAddUpsellArgs,
 } from './orchestrator/index.js';
+
+// Agents — re-exported here for consumers that need a specific agent without
+// running the full orchestrator (e.g. the `/ai/picks` endpoint runs the
+// Recommendation Agent directly).
+export {
+  multilingualNLUAgent,
+  routerAgent,
+  greeterAgent,
+  recommendationAgent,
+  upsellAgent,
+  contextMemoryAgent,
+  sentimentAgent,
+  groupCoordinatorAgent,
+  orderValidationAgent,
+} from './agents/index.js';

@@ -150,5 +150,8 @@ export const OrderDtoSchema = z.object({
     }),
   ),
   createdAt: z.string(),
+  /** Long-term memory signal — 1 for first visit, 2+ for return diners. */
+  visitCount: z.number().int().positive().default(1),
+  isReturnVisit: z.boolean().default(false),
 });
 export type OrderDto = z.infer<typeof OrderDtoSchema>;

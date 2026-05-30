@@ -29,7 +29,8 @@ import {
 import { childLogger } from '../../lib/logger.js';
 import { hashPhone } from '../../lib/crypto.js';
 import { otpService, type OtpService } from '../otp/service.js';
-import { SessionService } from '../session/service.js';
+import { sessionService, type SessionService } from '../session/service.js';
+import { userService, type UserService } from '../user/service.js';
 
 import type { OrderLineView, OrderView, PlaceOrderInput } from './types.js';
 
@@ -38,8 +39,9 @@ const log = childLogger('order-service');
 export class OrderService {
   constructor(
     private readonly db: PrismaClient = prisma,
-    private readonly sessions: SessionService = new SessionService(prisma),
+    private readonly sessions: SessionService = sessionService,
     private readonly otp: OtpService = otpService,
+    private readonly users: UserService = userService,
   ) {}
 
   async place(input: PlaceOrderInput): Promise<OrderView> {
@@ -132,8 +134,28 @@ export class OrderService {
         'order placed',
       );
 
-      return { row: created, tableId: session.tableId };
+      return { row: created, tableId: session.tableId, sessionPreferences: session.preferences };
     });
+
+    // ---- Long-term memory tier (best-effort; never fails the order) ----
+    let visitCount = 1;
+    let isReturnVisit = false;
+    try {
+      const sessionPrefs = order.sessionPreferences as Prisma.JsonObject;
+      const user = await this.users.upsertFromOrder({
+        phoneE164: input.customerPhone,
+        displayName: input.customerName.trim(),
+        preferencesPatch: (sessionPrefs as unknown) as Record<string, never>,
+      });
+      visitCount = user.visitCount;
+      isReturnVisit = user.visitCount > 1;
+      await this.users.linkSessionToUser(input.sessionId, user.id);
+    } catch (err) {
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'long-term user upsert failed (non-fatal)',
+      );
+    }
 
     // Best-effort kitchen + table notifications.
     const placedEvent: OrderPlaced = {
@@ -150,23 +172,27 @@ export class OrderService {
       this.publish(channels.kitchen(), placedEvent),
     ]);
 
-    return toView(order.row, order.row.items);
+    return toView(order.row, order.row.items, { visitCount, isReturnVisit });
   }
 
   async getById(orderId: string): Promise<OrderView> {
     const row = await this.db.order.findUnique({
       where: { id: orderId },
-      include: { items: true },
+      include: { items: true, session: { select: { userId: true, user: true } } },
     });
     if (!row) throw new NotFoundError('Order', orderId);
-    return toView(row, row.items);
+    const visitCount = row.session.user?.visitCount ?? 1;
+    return toView(row, row.items, { visitCount, isReturnVisit: visitCount > 1 });
   }
 
   async updateStatus(orderId: string, status: OrderStatus): Promise<OrderView> {
     const row = await this.db.order.update({
       where: { id: orderId },
       data: { status },
-      include: { items: true, session: { select: { tableId: true } } },
+      include: {
+        items: true,
+        session: { select: { tableId: true, user: { select: { visitCount: true } } } },
+      },
     });
     await this.publish(channels.table(row.session.tableId), {
       type: 'order:status_changed',
@@ -176,7 +202,8 @@ export class OrderService {
       status: row.status,
       timestamp: Date.now(),
     });
-    return toView(row, row.items);
+    const visitCount = row.session.user?.visitCount ?? 1;
+    return toView(row, row.items, { visitCount, isReturnVisit: visitCount > 1 });
   }
 
   private async publish(channel: string, payload: unknown): Promise<void> {
@@ -223,6 +250,7 @@ function toView(
     updatedAt: Date;
   },
   items: OrderItem[],
+  meta: { visitCount: number; isReturnVisit: boolean },
 ): OrderView {
   return {
     id: row.id,
@@ -238,6 +266,8 @@ function toView(
     notes: row.notes,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    visitCount: meta.visitCount,
+    isReturnVisit: meta.isReturnVisit,
   };
 }
 

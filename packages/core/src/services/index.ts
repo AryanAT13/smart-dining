@@ -44,3 +44,10 @@ export {
   type OrderLineView,
   type PlaceOrderInput,
 } from './order/index.js';
+
+export {
+  UserService,
+  userService,
+  type UserView,
+  type UpsertUserInput,
+} from './user/index.js';
