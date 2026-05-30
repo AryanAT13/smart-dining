@@ -5,9 +5,14 @@ import { ArrowLeft } from 'lucide-react';
 import { isDemoMode } from '@smart-dining/core';
 
 import { Button } from '@/components/ui/button';
-import { TraceTimeline } from '@/components/trace/TraceTimeline';
+import { TraceResolver } from '@/components/trace/TraceResolver';
 
 interface PageProps {
+  /**
+   * The URL slug. Either a session UUID (`b3e8…`) or a humanized table id
+   * (`T1`). Humans know table ids; we resolve to UUIDs client-side via the
+   * existing `/api/table/:tableId/session` endpoint.
+   */
   params: { sessionId: string };
 }
 
@@ -31,11 +36,8 @@ export default function TracePage({ params }: PageProps) {
           </Button>
         </div>
         <h1 className="font-display text-2xl">Agent timeline</h1>
-        <p className="text-sm text-muted-foreground">
-          Every LLM call for session <code className="font-mono text-xs">{params.sessionId.slice(0, 8)}…</code>
-        </p>
       </header>
-      <TraceTimeline sessionId={params.sessionId} />
+      <TraceResolver slug={params.sessionId} />
     </main>
   );
 }
