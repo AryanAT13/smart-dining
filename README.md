@@ -34,12 +34,13 @@ See [`docs/architecture.mmd`](docs/architecture.mmd) for the full diagram. Two-p
 
 Read these before touching the code — they explain why the shape is what it is.
 
-- [ADR-001](docs/adr/001-langgraph-over-agentexecutor.md) — LangGraph over a raw AgentExecutor
+- [ADR-001](docs/adr/001-langgraph-over-agentexecutor.md) — Graph-shaped orchestrator over a raw AgentExecutor
 - [ADR-002](docs/adr/002-pgvector-over-chroma.md) — pgvector over Chroma/Pinecone
 - [ADR-003](docs/adr/003-sse-and-ws-split.md) — SSE for AI, WebSocket for cart
 - [ADR-004](docs/adr/004-typescript-only-no-python.md) — TypeScript everywhere, no Python microservice
 - [ADR-005](docs/adr/005-render-deployment.md) — Render for backend infrastructure
 - [ADR-006](docs/adr/006-three-tier-memory.md) — Working / Session / Long-term memory tiers
+- [ADR-007](docs/adr/007-hand-rolled-dag-over-langgraph.md) — Hand-rolled typed DAG over the LangGraph library
 
 ## Agent design
 
@@ -138,8 +139,8 @@ This README is alive — sections fill in as phases land. Current phase: **1 (en
 | 0     | Monorepo, configs, schema, ADRs, deploy manifests            | done   |
 | 1     | End-to-end skeleton: menu, cart, WS sync, OTP, order         | done   |
 | 2     | AI core: 8 agents, orchestrator, RAG, SSE streaming, upsell  | done   |
-| 3     | Polish, /debug/trace UI, long-term memory tier               | next   |
-| 4     | Full eval harness, deploy, Loom walkthrough, submission docs | queued |
+| 3     | /debug/trace UI, eval harness, long-term memory, AI Pick, e2e | done   |
+| 4     | Deploy, Loom walkthrough, submission package                 | next   |
 
 ## AI surface (Phase 2)
 
@@ -165,4 +166,32 @@ The orchestrator calls into 9 typed tools (search_menu, get_cart, add_to_cart, �
 
 ### Trace observability
 
-Every agent invocation writes an `agent_traces` row with input/output previews, tool calls, latency, tokens, and cost. In demo mode, `GET /api/debug/trace/<sessionId>` returns the full trace timeline — perfect for the Loom walkthrough.
+Every agent invocation writes an `agent_traces` row with input/output previews, tool calls, latency, tokens, and cost. In demo mode, the trace timeline is rendered at:
+
+- **`/debug/trace/<sessionId>`** — vertical timeline UI with filter chips, auto-refresh, expandable agent cards (input / output / tool calls), and a stats strip (total runs, total cost, avg latency, total tokens).
+- **`GET /api/debug/trace/<sessionId>`** — raw JSON for the same data.
+
+Both are gated by `NEXT_PUBLIC_DEMO_MODE=true` and return 404 in production.
+
+## Eval suite
+
+```bash
+pnpm eval
+```
+
+Iterates every agent's golden cases, runs them against the live OpenAI API, scores against per-case predicates, and writes [`docs/eval-results.md`](docs/eval-results.md) with a per-agent pass-rate table plus per-case detail (latency, tokens, cost). Exits non-zero if any agent drops below `EVAL_THRESHOLD` (default 0.8). CI runs this on every push to `main` and on PRs labelled `run-eval`.
+
+If `OPENAI_API_KEY` is unset or a placeholder, the suite exits 0 with a "not configured" notice so feature branches without the secret don't fail CI.
+
+## End-to-end test
+
+```bash
+pnpm dev                                            # in one terminal
+pnpm --filter @smart-dining/web test:e2e            # in another
+```
+
+One Playwright spec (`tests/e2e/order-flow.spec.ts`) walks the full demo path: QR → onboarding → add → checkout → mock OTP → order confirmation. CI runs this against a seeded Postgres + Redis on every push and on PRs labelled `run-e2e`.
+
+## Long-term memory (Tier 3)
+
+On checkout, the customer's phone is HMAC-hashed and persisted to the `users` table along with the session's accumulated preferences (merged, not overwritten). On a return visit, the order confirmation surfaces a "Welcome back — visit #N" chip. Plaintext phones live only in the `orders.customer_phone` column (the PII boundary documented in [ADR-006](docs/adr/006-three-tier-memory.md)); the LLM never sees them.

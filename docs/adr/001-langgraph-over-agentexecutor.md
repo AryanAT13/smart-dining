@@ -1,6 +1,6 @@
-# ADR-001: LangGraph over a raw AgentExecutor
+# ADR-001: Graph-shaped orchestrator over a raw AgentExecutor
 
-- **Status:** Accepted
+- **Status:** Accepted (graph shape) — Superseded in implementation by [ADR-007](007-hand-rolled-dag-over-langgraph.md), which kept the graph topology but dropped the library
 - **Date:** 2026-05-28
 - **Deciders:** Aryan
 
@@ -16,12 +16,14 @@ The spec (§6.1) explicitly calls for a Router–Orchestrator pattern with inten
 
 ## Decision
 
-Use **LangGraph** as the orchestration substrate. Each agent is a LangGraph node implementing the shared `Agent<I, O>` contract. The graph defines:
+Adopt a **typed-state DAG** as the orchestration substrate — initially planned on LangGraph, but during Phase 2 implementation we kept the topology and dropped the library (see ADR-007 for the rationale). Each agent implements the shared `Agent<I, O>` contract. The graph defines:
 
 - Always-on entry: `multilingualNLU → router`
 - Conditional routing from `router` to one of `{greeter, recommendation, upsell, groupCoordinator, orderValidation, fallback}`
 - Always-on exit: `contextMemory → formatter`
 - Parallel side-branch: `sentiment` (fires concurrently, output influences next turn)
+
+The decision in this ADR is about the *shape* — typed state, conditional routing, parallel branches, per-node tracing. ADR-007 covers the implementation choice within that shape.
 
 ## Rationale
 

@@ -113,7 +113,7 @@ documented sequence. See [`docs/adr/001-langgraph-over-agentexecutor.md`](adr/00
 
 ## Tool registry
 
-All agent–service calls flow through `packages/core/src/tools/_registry.ts`. Each tool:
+All agent–service calls flow through `packages/core/src/tools/registry.ts`. Each tool:
 
 - has a Zod-typed input and output schema
 - declares which agent(s) may invoke it
@@ -140,4 +140,24 @@ This is what kills the entire prompt-injection-to-data-leak class of bugs: even 
 
 ## Evaluation
 
-Every agent ships with `golden.ts` — input/expected-output pairs. `pnpm eval` runs all of them against the real API and produces a pass/fail table in `docs/eval-results.md`. A regression in any agent fails CI.
+Every agent ships with `golden.ts` — input/expected-output pairs. `pnpm eval` runs them against the real OpenAI API and writes a pass/fail table to [`docs/eval-results.md`](eval-results.md) — per-agent summary plus per-case latency / tokens / cost. The runner exits non-zero if any agent drops below the configured pass-rate threshold (`EVAL_THRESHOLD`, default 0.8), so CI catches regressions automatically.
+
+The harness lives in `packages/core/tests/eval/`:
+
+- `runner.ts` — generic per-agent runner; takes an `Agent` and its `GoldenCase[]`, invokes against a minimal `AgentContext`, records latency / tokens / cost / pass.
+- `reporter.ts` — Markdown writer.
+- `run.ts` — orchestrates all 7 LLM agents in cost-ascending order.
+
+If `OPENAI_API_KEY` is unset or a placeholder, the harness exits 0 with a clear "not configured" notice so dev branches without the secret don't break CI.
+
+## Trace observability
+
+Every agent invocation produces a row in `agent_traces` (Postgres) with:
+
+- `agent`, `model`, `temperature`
+- `tokensIn`, `tokensOut`, `latencyMs`, `costUsd`
+- bounded JSON previews of `input` and `output`
+- `toolCalls` array with per-call args / result / duration / ok flag
+- `error` (null on success)
+
+In demo mode (`NEXT_PUBLIC_DEMO_MODE=true`), the timeline is rendered at `/debug/trace/<sessionId>` with filter chips, auto-refresh, expandable cards, and a stats strip. Production builds return 404 for that route.
