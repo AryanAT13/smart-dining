@@ -12,6 +12,9 @@ build/
 # Test output
 coverage/
 .nyc_output/
+playwright-report/
+playwright/.cache/
+test-results/
 
 # Environment
 .env
