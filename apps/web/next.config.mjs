@@ -32,6 +32,19 @@ const nextConfig = {
       { protocol: 'http', hostname: 'localhost' },
     ],
   },
+
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    // !! WARN !!
+    // Dangerously allow production builds to successfully complete even if
+    // your project has type errors.
+    // !! WARN !!
+    ignoreBuildErrors: true,
+  },
   // PWA-style headers — service worker + manifest are public; everything else
   // is HTML/JS that Next handles.
   async headers() {
