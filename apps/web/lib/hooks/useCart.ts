@@ -98,7 +98,10 @@ export function useUpdateCartItem() {
     },
     onError: (err) => {
       if (err instanceof ApiError && err.code === 'CART_VERSION_MISMATCH') {
-        toast.info('Someone else just updated this item. Refreshing.');
+        toast.warning('Someone at your table just updated this item', {
+          description: 'Their change wins — your cart will refresh in a second.',
+          duration: 4000,
+        });
         if (sessionId) queryClient.invalidateQueries({ queryKey: cartKeys.forSession(sessionId) });
         return;
       }

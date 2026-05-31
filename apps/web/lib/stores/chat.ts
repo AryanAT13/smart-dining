@@ -32,6 +32,8 @@ export interface ChatMessage {
 interface ChatState {
   isOpen: boolean;
   messages: ChatMessage[];
+  /** Count of unread assistant messages since the drawer was last opened. */
+  unreadCount: number;
   /** Stage labels shown while waiting ("Searching the menu…"). */
   agentProgress: string | null;
   isAwaitingResponse: boolean;
@@ -59,9 +61,12 @@ export const useChatStore = create<ChatState>()(
     (set) => ({
       isOpen: false,
       messages: [],
+      unreadCount: 0,
       agentProgress: null,
       isAwaitingResponse: false,
-      setOpen: (open) => set({ isOpen: open }),
+      setOpen: (open) =>
+        // Opening the drawer marks all assistant messages as read.
+        set(open ? { isOpen: true, unreadCount: 0 } : { isOpen: false }),
       pushUser: (text) => {
         const id = rid();
         set((state) => ({
@@ -82,6 +87,9 @@ export const useChatStore = create<ChatState>()(
               ...(suggestions && suggestions.length > 0 ? { suggestions } : {}),
             },
           ],
+          // If the drawer is closed when the assistant speaks, bump the
+          // unread counter so the dock can show its pulse.
+          unreadCount: state.isOpen ? state.unreadCount : state.unreadCount + 1,
         }));
         return id;
       },
@@ -103,16 +111,18 @@ export const useChatStore = create<ChatState>()(
         }));
       },
       attachSuggestions: (id, items) => {
+        // Keep `isStreaming: true` so the cursor keeps blinking until token
+        // frames stop arriving (the `done` frame is the canonical end-of-turn).
         set((state) => ({
           messages: state.messages.map((m) =>
-            m.id === id ? { ...m, suggestions: items, isStreaming: false } : m,
+            m.id === id ? { ...m, suggestions: items } : m,
           ),
         }));
       },
       setAgentProgress: (label) => set({ agentProgress: label }),
       setAwaiting: (waiting) =>
         set({ isAwaitingResponse: waiting, agentProgress: waiting ? null : null }),
-      clear: () => set({ messages: [] }),
+      clear: () => set({ messages: [], unreadCount: 0 }),
     }),
     {
       name: STORAGE_KEY,
