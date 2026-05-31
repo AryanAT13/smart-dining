@@ -1,10 +1,12 @@
 # Smart Dining Assistant
 
+![Smart Dining QR Code](./QR.png)
+
 > Multi-agent AI orchestration over a real-time group ordering platform for restaurants.
 > AI is the primary interaction layer — not a chatbot widget bolted onto a CRUD app.
 
-**Live demo:** _populated after deploy — see [docs/deploy.md](docs/deploy.md)_
-**Walkthrough video:** _populated after recording — script in [docs/loom-script.md](docs/loom-script.md)_
+[**Demo Video:**](https://drive.google.com/file/d/1coOUvco5PemfuPt4_Xrz9LFL3z5h4lNt/view?usp=sharing)
+
 
 **👉 [SUBMISSION.md](SUBMISSION.md) — single-page evaluator overview with rubric mapping**
 
@@ -12,7 +14,7 @@
 
 ## What this is
 
-A diner scans a QR at the table, lands on `/table/T12`, and is greeted by **Zara** — an LLM persona backed by eight cooperating agents (greeter, recommendation, upsell, context memory, group coordinator, sentiment, multilingual NLU, order validation). Natural language drives the order in English, Hinglish, or Telugu-English. Multiple people at the same table share a live cart with per-item ownership badges. Checkout takes name + phone, OTP-verifies, and pushes a kitchen notification over WebSocket.
+A diner scans a QR at the table, lands on `/table/T1`, and is greeted by **Zara** — an LLM persona backed by eight cooperating agents (greeter, recommendation, upsell, context memory, group coordinator, sentiment, multilingual NLU, order validation). Natural language drives the order in English, Hinglish, or Telugu-English. Multiple people at the same table share a live cart with per-item ownership badges. Checkout takes name + phone, OTP-verifies, and pushes a kitchen notification over WebSocket.
 
 The system is built to demonstrate engineering judgment at every layer — typed agent contracts, schema-validated tool calls, RAG-grounded recommendations, deterministic agent evaluation suites, three-tier memory, and observable traces of every agent invocation.
 
