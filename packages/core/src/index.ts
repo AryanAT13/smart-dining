@@ -26,11 +26,14 @@ export {
   persistTraces,
   previewForTrace,
   triggerPostAddUpsell,
+  triggerThatsAllUpsell,
+  greetNewJoiner,
   type RunOptions,
   type OrchestratorInput,
   type OrchestratorState,
   type AgentTraceRecord,
   type PostAddUpsellArgs,
+  type GreetJoinerArgs,
 } from './orchestrator/index.js';
 
 // Agents — re-exported here for consumers that need a specific agent without

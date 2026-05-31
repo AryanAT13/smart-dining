@@ -20,6 +20,7 @@ import type {
   Language,
   SseFrame,
 } from '@smart-dining/shared';
+import { mergePreferences as sharedMergePreferences } from '@smart-dining/shared';
 
 import { isDemoMode } from '../config/env.js';
 import { BudgetExceededError, toDomainError } from '../lib/errors.js';
@@ -141,6 +142,14 @@ export async function runOrchestrator(
     // ----- Stage 4: Specialist ----------------------------------------
     await dispatchSpecialist(state, transcript, cartSnapshot, emitter);
 
+    // ----- Stage 4b: Stream the assistant text to the client ----------
+    // The specialists return JSON (chatJson, not streaming) so no tokens
+    // flow naturally. Synthesize a chunked stream so the chat bubble
+    // populates with text, not just an empty container above the cards.
+    if (emitter && state.assistantText) {
+      await streamAssistantText(state.assistantText, emitter);
+    }
+
     // ----- Stage 5: Cart actions (if any) -----------------------------
     for (const action of state.cartActions) {
       const orchestratorCtx = buildContext(state, 'orchestrator');
@@ -240,6 +249,19 @@ async function dispatchSpecialist(
   const language = state.language ?? 'en';
   const ctx = buildContext(state, 'orchestrator');
 
+  // ----- Merge session-tier prefs with THIS turn's patch -----
+  // The Recommendation Agent and search_menu must see the diner's
+  // ACCUMULATED preferences (e.g. "no dairy" said three turns ago),
+  // not just the prefs extracted from the current message. Without
+  // this merge, a turn that says "more spicy please" loses the prior
+  // dairy exclusion and Zara starts recommending dairy items again.
+  const sessionRow = await sessionService.getById(state.input.sessionId).catch(() => null);
+  const sessionPrefs = (sessionRow?.preferences ?? {}) as Record<string, unknown>;
+  const mergedPrefs = sharedMergePreferences(
+    sessionPrefs as Parameters<typeof sharedMergePreferences>[0],
+    state.preferencesPatch,
+  );
+
   switch (intent) {
     case 'GREET': {
       const result = await invokeAgent(
@@ -262,6 +284,8 @@ async function dispatchSpecialist(
 
     case 'RECOMMEND': {
       // Retrieve candidates via the tool registry (orchestrator privilege).
+      // Use MERGED preferences so prior turns' constraints (e.g. "no dairy")
+      // continue to apply to the search filters.
       const search = await toolRegistry.dispatch<{
         matches: Array<{
           itemId: string;
@@ -279,10 +303,10 @@ async function dispatchSpecialist(
         {
           query: state.englishGloss ?? state.input.text,
           topK: 8,
-          excludeAllergens: state.preferencesPatch.excludeAllergens ?? [],
-          vegOnly: state.preferencesPatch.vegOnly ?? false,
+          excludeAllergens: mergedPrefs.excludeAllergens ?? [],
+          vegOnly: mergedPrefs.vegOnly ?? false,
           excludeInCart: true,
-          ...(state.preferencesPatch.light ? { maxCaloriesKcal: 400 } : {}),
+          ...(mergedPrefs.light ? { maxCaloriesKcal: 400 } : {}),
         },
         ctx,
       );
@@ -301,7 +325,7 @@ async function dispatchSpecialist(
           englishGloss: state.englishGloss ?? state.input.text,
           originalText: state.input.text,
           language,
-          preferences: state.preferencesPatch,
+          preferences: mergedPrefs,
           timeOfDay: classifyTimeOfDay(),
           cartItemIds,
           candidates: search.matches,
@@ -343,7 +367,8 @@ async function dispatchSpecialist(
     }
 
     case 'GROUP_MERGE': {
-      // Pull two candidate sets in parallel.
+      // Pull two candidate sets in parallel — using MERGED preferences so
+      // prior turns' allergen exclusions etc. apply across the table.
       const [veg, nonVeg] = await Promise.all([
         toolRegistry.dispatch<{
           matches: Array<{
@@ -362,7 +387,7 @@ async function dispatchSpecialist(
           {
             query: `${state.englishGloss ?? state.input.text} vegetarian`,
             topK: 5,
-            excludeAllergens: state.preferencesPatch.excludeAllergens ?? [],
+            excludeAllergens: mergedPrefs.excludeAllergens ?? [],
             vegOnly: true,
             excludeInCart: true,
           },
@@ -385,7 +410,7 @@ async function dispatchSpecialist(
           {
             query: `${state.englishGloss ?? state.input.text} non-vegetarian`,
             topK: 5,
-            excludeAllergens: state.preferencesPatch.excludeAllergens ?? [],
+            excludeAllergens: mergedPrefs.excludeAllergens ?? [],
             vegOnly: false,
             excludeInCart: true,
           },
@@ -399,10 +424,10 @@ async function dispatchSpecialist(
           trigger: 'group_intent' as const,
           participants: [state.input.displayName],
           cartItemNames: cartSnapshot?.items.map((l) => l.menuItem.name) ?? [],
-          ...(state.preferencesPatch.groupSize !== undefined
-            ? { groupSize: state.preferencesPatch.groupSize }
+          ...(mergedPrefs.groupSize !== undefined
+            ? { groupSize: mergedPrefs.groupSize }
             : {}),
-          combinedPreferences: state.preferencesPatch,
+          combinedPreferences: mergedPrefs,
           language,
           vegCandidates: veg.matches,
           nonVegCandidates: nonVeg.matches.filter((m) => !m.tags.includes('veg')),
@@ -423,6 +448,16 @@ async function dispatchSpecialist(
 
     case 'CHECKOUT': {
       state.assistantText = 'Opening checkout — please fill in your name and phone in the modal.';
+      // Fire the "thats_all" upsell in the background — spec §5.4 last
+      // trigger. Don't await; the order flow shouldn't wait on a save-attempt.
+      void (async () => {
+        const { triggerThatsAllUpsell } = await import('./upsell.js');
+        await triggerThatsAllUpsell({
+          sessionId: state.input.sessionId,
+          tableId: state.input.tableId,
+          addedBy: state.input.displayName,
+        });
+      })();
       // The UI watches for intent=CHECKOUT and opens the modal client-side.
       return;
     }
@@ -446,6 +481,42 @@ async function dispatchSpecialist(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Stream the assistant's message text to the client as a series of small
+ * token frames. Synthesizes a "Zara is typing" feel even though the
+ * underlying chatJson call is non-streaming. Chunks on word boundaries
+ * to keep the pacing natural.
+ *
+ * Timing: ~12 chars per chunk at 22ms between → readable, not jittery.
+ * For a 100-char message that's ~200ms — within the SSE budget.
+ */
+async function streamAssistantText(text: string, emitter: OrchestratorEmitter): Promise<void> {
+  const tokens = chunkOnWords(text, 12);
+  const intervalMs = 22;
+  for (const token of tokens) {
+    emitter.emitToken(token);
+    if (intervalMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+}
+
+function chunkOnWords(text: string, approxLen: number): string[] {
+  const words = text.split(/(\s+)/); // keep separators
+  const out: string[] = [];
+  let buf = '';
+  for (const part of words) {
+    if (buf.length + part.length > approxLen && buf.length > 0) {
+      out.push(buf);
+      buf = part;
+    } else {
+      buf += part;
+    }
+  }
+  if (buf) out.push(buf);
+  return out;
+}
 
 function buildContext(state: OrchestratorState, callerAgent: AgentContext['callerAgent']): AgentContext {
   return {

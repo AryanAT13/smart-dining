@@ -7,4 +7,5 @@ export {
   type OrchestratorState,
 } from './state.js';
 export { persistTraces, previewForTrace } from './trace.js';
-export { triggerPostAddUpsell, type PostAddUpsellArgs } from './upsell.js';
+export { triggerPostAddUpsell, triggerThatsAllUpsell, type PostAddUpsellArgs } from './upsell.js';
+export { greetNewJoiner, type GreetJoinerArgs } from './greetJoiner.js';
