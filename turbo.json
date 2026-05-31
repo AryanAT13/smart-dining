@@ -28,7 +28,13 @@
     "R2_ACCESS_KEY_ID",
     "R2_SECRET_ACCESS_KEY",
     "R2_BUCKET",
-    "R2_PUBLIC_URL"
+    "R2_PUBLIC_URL",
+    "ASSISTANT_NAME",
+    "RESTAURANT_NAME",
+    "RESTAURANT_TIMEZONE",
+    "SESSION_LLM_BUDGET_USD",
+    "RATE_LIMIT_GLOBAL_PER_MIN",
+    "RATE_LIMIT_AI_PER_MIN"
   ],
   "tasks": {
     "build": {
