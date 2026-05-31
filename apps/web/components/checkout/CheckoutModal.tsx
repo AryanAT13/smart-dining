@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -9,6 +9,10 @@ import { z } from 'zod';
 
 import type { OrderDto } from '@smart-dining/shared';
 
+import { ApiError } from '@/lib/api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { sessionKeys } from '@/lib/api/fetchers';
+import { tableOrdersKey } from '@/lib/api/orders';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,7 +38,7 @@ const ContactSchema = z.object({
 
 type ContactForm = z.infer<typeof ContactSchema>;
 
-type Step = 'contact' | 'otp' | 'placing' | 'done';
+type Step = 'contact' | 'otp' | 'placing' | 'failed' | 'done';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -43,6 +47,8 @@ interface CheckoutModalProps {
 
 export function CheckoutModal({ open, onOpenChange }: CheckoutModalProps) {
   const sessionId = useIdentityStore((s) => s.sessionId);
+  const tableId = useIdentityStore((s) => s.tableId);
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>('contact');
   const [phone, setPhone] = useState<string>('');
   const [name, setName] = useState<string>('');
@@ -50,6 +56,7 @@ export function CheckoutModal({ open, onOpenChange }: CheckoutModalProps) {
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [debugOtp, setDebugOtp] = useState<string | null>(null);
   const [order, setOrder] = useState<OrderDto | null>(null);
+  const [failureReason, setFailureReason] = useState<string | null>(null);
 
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
@@ -71,8 +78,25 @@ export function CheckoutModal({ open, onOpenChange }: CheckoutModalProps) {
     contactForm.reset();
   };
 
+  /**
+   * When the confirmation closes, the placed session is `ordered` and
+   * unusable for further mutations. Invalidate the session query so the
+   * next request creates a fresh active session — the diner can keep
+   * adding items (drinks, dessert) without a full page refresh.
+   * Also surface the new order in the per-table orders list.
+   */
+  const recycleSessionAndShowOrders = () => {
+    if (tableId) {
+      queryClient.invalidateQueries({ queryKey: sessionKeys.forTable(tableId) });
+      queryClient.invalidateQueries({ queryKey: tableOrdersKey(tableId) });
+    }
+  };
+
   const handleClose = (next: boolean) => {
-    if (!next && step === 'done') resetAll();
+    if (!next && step === 'done') {
+      resetAll();
+      recycleSessionAndShowOrders();
+    }
     if (!next && step !== 'placing') {
       onOpenChange(next);
     }
@@ -91,16 +115,29 @@ export function CheckoutModal({ open, onOpenChange }: CheckoutModalProps) {
       toast.error('Enter all 6 digits.');
       return;
     }
-    const verified = await verifyOtp.mutateAsync({ phone, code: otp });
-    setOtpToken(verified.token);
-    setStep('placing');
-    const placed = await placeOrder.mutateAsync({
-      customerName: name,
-      customerPhone: phone,
-      otpToken: verified.token,
-    });
-    setOrder(placed.order);
-    setStep('done');
+    try {
+      const verified = await verifyOtp.mutateAsync({ phone, code: otp });
+      setOtpToken(verified.token);
+      setStep('placing');
+      const placed = await placeOrder.mutateAsync({
+        customerName: name,
+        customerPhone: phone,
+        otpToken: verified.token,
+      });
+      setOrder(placed.order);
+      setStep('done');
+    } catch (err) {
+      // OrderValidationAgent rejected: stock issue, empty cart, business rule.
+      // Surface the structured message instead of dead-ending the spinner.
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Something went wrong placing your order.';
+      setFailureReason(message);
+      setStep('failed');
+    }
   };
 
   return (
@@ -197,8 +234,56 @@ export function CheckoutModal({ open, onOpenChange }: CheckoutModalProps) {
 
         {step === 'placing' && (
           <div className="flex flex-col items-center gap-3 py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Placing your order…</p>
+            <div className="relative">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <ShieldCheck className="absolute -bottom-1 -right-2 h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="space-y-1 text-center">
+              <p className="text-sm font-medium">Zara is double-checking your order</p>
+              <p className="text-xs text-muted-foreground">
+                Confirming stock, totals, and kitchen availability…
+              </p>
+            </div>
+          </div>
+        )}
+
+        {step === 'failed' && (
+          <div className="space-y-4 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">We couldn&apos;t place the order</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {failureReason ?? 'Please check your cart and try again.'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 tap-target"
+                onClick={() => {
+                  // Reset OTP — they'll need a fresh code anyway since the token was consumed.
+                  setStep('contact');
+                  setOtp('');
+                  setOtpToken(null);
+                  setFailureReason(null);
+                }}
+              >
+                Try again
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 tap-target"
+                onClick={() => {
+                  resetAll();
+                  onOpenChange(false);
+                }}
+              >
+                Back to cart
+              </Button>
+            </div>
           </div>
         )}
 
@@ -207,6 +292,7 @@ export function CheckoutModal({ open, onOpenChange }: CheckoutModalProps) {
             order={order}
             onClose={() => {
               resetAll();
+              recycleSessionAndShowOrders();
               onOpenChange(false);
             }}
           />

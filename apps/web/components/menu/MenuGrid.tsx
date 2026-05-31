@@ -7,14 +7,14 @@ import type { MenuItemDto } from '@smart-dining/shared';
 import { CategoryTabs } from './CategoryTabs';
 import { FilterChips, type FilterKey } from './FilterChips';
 import { MenuCard } from './MenuCard';
+import { categoryLabel } from '@/lib/utils/format';
 
 interface MenuGridProps {
   items: MenuItemDto[];
   popular: MenuItemDto[];
-  onAdd: (item: MenuItemDto) => void;
 }
 
-export function MenuGrid({ items, popular, onAdd }: MenuGridProps) {
+export function MenuGrid({ items, popular }: MenuGridProps) {
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all');
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
 
@@ -65,7 +65,7 @@ export function MenuGrid({ items, popular, onAdd }: MenuGridProps) {
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {popular.slice(0, 4).map((item) => (
-              <MenuCard key={item.id} item={item} onAdd={onAdd} />
+              <MenuCard key={item.id} item={item} />
             ))}
           </div>
         </section>
@@ -79,11 +79,11 @@ export function MenuGrid({ items, popular, onAdd }: MenuGridProps) {
         grouped.map(([category, list]) => (
           <section key={category} className="space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              {category.replaceAll('_', ' ')}
+              {categoryLabel(category)}
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {list.map((item) => (
-                <MenuCard key={item.id} item={item} onAdd={onAdd} />
+                <MenuCard key={item.id} item={item} />
               ))}
             </div>
           </section>

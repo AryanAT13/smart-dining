@@ -4,66 +4,67 @@
 
 @layer base {
   :root {
-    /* Light theme — warm restaurant palette. */
-    --background: 36 33% 97%;
-    --foreground: 24 16% 12%;
+    /*
+     * 60 : 30 : 10 palette
+     *
+     * 60% dominant — warm cream / linen
+     * 30% secondary — terracotta (primary CTAs, brand)
+     * 10% accent — saffron gold (highlights, badges, "AI" affordances)
+     */
 
+    /* 60 — dominant surfaces */
+    --background: 38 38% 96%;            /* cream linen */
+    --foreground: 24 18% 14%;            /* deep coffee text */
     --card: 0 0% 100%;
-    --card-foreground: 24 16% 12%;
+    --card-foreground: 24 18% 14%;
+    --muted: 36 24% 92%;
+    --muted-foreground: 24 12% 38%;
 
-    --primary: 16 84% 48%;          /* spice red — primary CTAs */
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 36 33% 92%;
-    --secondary-foreground: 24 16% 12%;
-
-    --muted: 36 20% 90%;
-    --muted-foreground: 24 10% 38%;
-
-    --accent: 33 92% 92%;
-    --accent-foreground: 24 16% 12%;
-
-    --destructive: 0 76% 50%;
+    /* 30 — secondary, brand */
+    --primary: 14 64% 46%;               /* terracotta */
+    --primary-foreground: 38 38% 98%;
+    --secondary: 38 32% 91%;
+    --secondary-foreground: 24 18% 14%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 24 12% 86%;
-    --input: 24 12% 86%;
-    --ring: 16 84% 48%;
-
-    --spice: 16 84% 48%;
+    /* 10 — accent */
+    --accent: 40 88% 60%;                /* saffron */
+    --accent-foreground: 24 18% 14%;
+    --spice: 14 70% 50%;
     --spice-foreground: 0 0% 100%;
+    --gold: 40 88% 55%;
+    --gold-foreground: 24 18% 14%;
 
-    --radius: 0.75rem;
+    --border: 30 18% 86%;
+    --input: 30 18% 86%;
+    --ring: 14 64% 46%;
+
+    --radius: 0.875rem;
   }
 
   .dark {
-    --background: 24 16% 10%;
-    --foreground: 36 33% 96%;
-
-    --card: 24 16% 13%;
-    --card-foreground: 36 33% 96%;
-
-    --primary: 16 84% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 24 12% 18%;
-    --secondary-foreground: 36 33% 96%;
-
-    --muted: 24 12% 18%;
-    --muted-foreground: 36 12% 65%;
-
-    --accent: 24 12% 22%;
-    --accent-foreground: 36 33% 96%;
-
-    --destructive: 0 76% 50%;
+    --background: 24 18% 9%;
+    --foreground: 38 36% 94%;
+    --card: 24 18% 12%;
+    --card-foreground: 38 36% 94%;
+    --muted: 24 14% 18%;
+    --muted-foreground: 36 14% 65%;
+    --primary: 14 70% 56%;
+    --primary-foreground: 24 20% 8%;
+    --secondary: 24 14% 18%;
+    --secondary-foreground: 38 36% 94%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 24 12% 22%;
-    --input: 24 12% 22%;
-    --ring: 16 84% 55%;
-
-    --spice: 16 84% 55%;
+    --accent: 40 88% 55%;
+    --accent-foreground: 24 20% 8%;
+    --spice: 14 70% 56%;
     --spice-foreground: 0 0% 100%;
+    --gold: 40 88% 55%;
+    --gold-foreground: 24 20% 8%;
+    --border: 24 14% 22%;
+    --input: 24 14% 22%;
+    --ring: 14 70% 56%;
   }
 
   * {
@@ -71,12 +72,21 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    /* Mobile-first: stop overscroll bounce on iOS. */
     overscroll-behavior-y: contain;
     -webkit-tap-highlight-color: transparent;
+    /*
+     * Subtle warm gradient base — sits behind the AestheticBackground
+     * floating orbs. Combined they give the "high-end restaurant"
+     * vibe without making the menu cards harder to read.
+     */
+    background:
+      radial-gradient(at 18% 14%, hsl(40 88% 92% / 0.55) 0%, transparent 55%),
+      radial-gradient(at 86% 8%, hsl(14 64% 90% / 0.45) 0%, transparent 50%),
+      radial-gradient(at 72% 90%, hsl(38 38% 90% / 0.6) 0%, transparent 60%),
+      hsl(var(--background));
+    background-attachment: fixed;
   }
 
-  /* Safe-area padding for notched devices. */
   .pb-safe {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
@@ -85,10 +95,52 @@
   }
 }
 
-/* Utility used by MenuCard to bias the "Add" button to be 44px+ on mobile. */
 @layer utilities {
   .tap-target {
     min-height: 44px;
     min-width: 44px;
   }
+
+  /* Glass-card surface — used by AI Pick strip and chat suggestion cards. */
+  .glass {
+    background: hsl(0 0% 100% / 0.78);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Floating-orb keyframes used by AestheticBackground. */
+  @keyframes float-drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%      { transform: translate(-40px, 30px) scale(1.08); }
+  }
+  @keyframes float-drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%      { transform: translate(60px, -20px) scale(0.94); }
+  }
+  @keyframes float-drift-c {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%      { transform: translate(-30px, -40px) scale(1.04); }
+  }
+  .animate-orb-a { animation: float-drift-a 22s ease-in-out infinite; }
+  .animate-orb-b { animation: float-drift-b 28s ease-in-out infinite; }
+  .animate-orb-c { animation: float-drift-c 18s ease-in-out infinite; }
+
+  /* Zara "has-a-suggestion" attention — a slow gold halo that breathes. */
+  @keyframes zara-halo {
+    0%, 100% {
+      box-shadow:
+        0 0 0 0 hsl(var(--gold) / 0.55),
+        0 6px 22px -2px hsl(var(--primary) / 0.4);
+    }
+    50% {
+      box-shadow:
+        0 0 0 10px hsl(var(--gold) / 0),
+        0 8px 28px -2px hsl(var(--gold) / 0.55);
+    }
+  }
+  .animate-zara-halo { animation: zara-halo 1.6s ease-in-out infinite; }
 }

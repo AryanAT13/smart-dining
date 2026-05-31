@@ -1,6 +1,7 @@
 'use client';
 
-import { CheckCircle2, Clock } from 'lucide-react';
+import { CheckCircle2, Clock, MapPin } from 'lucide-react';
+import Link from 'next/link';
 
 import type { OrderDto } from '@smart-dining/shared';
 
@@ -65,9 +66,17 @@ export function OrderConfirmation({ order, onClose }: OrderConfirmationProps) {
         </div>
       </dl>
 
-      <Button size="lg" className="w-full tap-target" onClick={onClose}>
-        Done
-      </Button>
+      <div className="flex gap-2">
+        <Button asChild size="lg" className="flex-1 tap-target">
+          <Link href={`/order/${order.id}`}>
+            <MapPin className="h-4 w-4" />
+            Track order
+          </Link>
+        </Button>
+        <Button variant="outline" size="lg" className="flex-1 tap-target" onClick={onClose}>
+          Done
+        </Button>
+      </div>
     </div>
   );
 }

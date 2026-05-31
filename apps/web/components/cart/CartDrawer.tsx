@@ -10,63 +10,47 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import { useCart } from '@/lib/hooks/useCart';
 import { useCartUiStore } from '@/lib/stores/cartUi';
 import { useIdentityStore } from '@/lib/stores/identity';
-import { cn } from '@/lib/utils/cn';
 import { formatINR } from '@/lib/utils/format';
 
 import { CartItemRow } from './CartItemRow';
 import { CheckoutModal } from '../checkout/CheckoutModal';
 
+/**
+ * Shared-cart drawer — opened from the FloatingDock. No launcher of its
+ * own; the dock owns the trigger.
+ */
 export function CartDrawer() {
   const sessionId = useIdentityStore((s) => s.sessionId);
   const isOpen = useCartUiStore((s) => s.isOpen);
   const setOpen = useCartUiStore((s) => s.setOpen);
-  const lastAddedAt = useCartUiStore((s) => s.lastAddedAt);
 
   const cartQuery = useCart(sessionId);
   const cart = cartQuery.data?.cart;
-  const itemCount = cart?.items.reduce((acc, l) => acc + l.quantity, 0) ?? 0;
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   return (
     <>
       <Sheet open={isOpen} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <Button
-            type="button"
-            variant="default"
-            size="lg"
-            className={cn(
-              'fixed bottom-4 right-4 z-40 rounded-full shadow-xl pb-safe tap-target',
-              lastAddedAt > 0 && 'animate-cart-pop',
-            )}
-            key={lastAddedAt}
-            aria-label={`Open cart, ${itemCount} item${itemCount === 1 ? '' : 's'}`}
-          >
-            <ShoppingBag className="h-5 w-5" />
-            <span>{itemCount === 0 ? 'Cart' : `${itemCount} item${itemCount === 1 ? '' : 's'}`}</span>
-            {cart && cart.total > 0 && (
-              <span className="ml-1 text-sm font-semibold tabular-nums">{formatINR(cart.total)}</span>
-            )}
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-xl pb-safe">
+        <SheetContent side="bottom" className="rounded-t-2xl pb-safe">
           <SheetHeader>
-            <SheetTitle>Your table's cart</SheetTitle>
+            <SheetTitle className="flex items-center gap-2 font-display">
+              <ShoppingBag className="h-5 w-5 text-primary" />
+              Your table&apos;s cart
+            </SheetTitle>
             <SheetDescription>
               Shared with everyone at this table. Anyone can add or remove.
             </SheetDescription>
           </SheetHeader>
 
-          <div className="mt-4 max-h-[50dvh] overflow-y-auto">
+          <div className="mt-4 max-h-[55dvh] overflow-y-auto">
             {!cart || cart.items.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">
-                Nothing in the cart yet. Tap "Add" on a menu item to get started.
+                Nothing in the cart yet. Tap &ldquo;Add&rdquo; on a menu item to get started.
               </p>
             ) : (
               <ul className="divide-y divide-border">

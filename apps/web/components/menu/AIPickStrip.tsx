@@ -1,11 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { CartStepper } from '@/components/cart/CartStepper';
+import { FoodImage } from '@/components/menu/FoodImage';
 import { api } from '@/lib/api/client';
-import { useAddCartItem } from '@/lib/hooks/useCart';
+import { useCartUiStore } from '@/lib/stores/cartUi';
 import { cn } from '@/lib/utils/cn';
 import { formatINR } from '@/lib/utils/format';
 
@@ -15,6 +16,7 @@ interface Pick {
   price: number;
   reason: string;
   imageUrl?: string;
+  category?: string;
 }
 
 interface PicksResponse {
@@ -31,7 +33,7 @@ interface AIPickStripProps {
 }
 
 export function AIPickStrip({ sessionId }: AIPickStripProps) {
-  const add = useAddCartItem();
+  const flashAdd = useCartUiStore((s) => s.flashAdd);
   const query = useQuery({
     queryKey: ['ai-picks', sessionId ?? 'none'],
     queryFn: () => {
@@ -48,7 +50,7 @@ export function AIPickStrip({ sessionId }: AIPickStripProps) {
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-foreground/80">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
           Zara&apos;s picks for you
         </h2>
@@ -64,34 +66,37 @@ export function AIPickStrip({ sessionId }: AIPickStripProps) {
           ? Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="h-32 w-64 shrink-0 animate-pulse rounded-lg border bg-card"
+                className="h-44 w-64 shrink-0 animate-pulse rounded-xl border bg-card"
               />
             ))
           : query.data?.picks.map((p) => (
               <article
                 key={p.itemId}
                 className={cn(
-                  'flex w-64 shrink-0 flex-col gap-2 rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md',
+                  'group relative flex w-64 shrink-0 flex-col gap-2 overflow-hidden rounded-xl border border-border/70 bg-card/90 shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md',
                 )}
               >
-                <header className="flex items-start justify-between gap-2">
-                  <h3 className="line-clamp-1 text-sm font-semibold leading-tight">{p.name}</h3>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">
-                    {formatINR(p.price)}
-                  </span>
-                </header>
-                <p className="line-clamp-2 text-xs text-muted-foreground">"{p.reason}"</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="ml-auto mt-auto tap-target"
-                  onClick={() => add.mutate({ menuItemId: p.itemId })}
-                  disabled={add.isPending}
-                  aria-label={`Add ${p.name}`}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add
-                </Button>
+                <FoodImage
+                  src={p.imageUrl}
+                  name={p.name}
+                  category={p.category}
+                  className="h-24 w-full"
+                  rounded="lg"
+                />
+                <div className="flex flex-1 flex-col gap-2 px-3 pb-3">
+                  <header className="flex items-start justify-between gap-2">
+                    <h3 className="line-clamp-1 text-sm font-semibold leading-tight">{p.name}</h3>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">
+                      {formatINR(p.price)}
+                    </span>
+                  </header>
+                  <p className="line-clamp-2 text-xs italic text-muted-foreground">
+                    &ldquo;{p.reason}&rdquo;
+                  </p>
+                  <div className="ml-auto mt-auto">
+                    <CartStepper menuItemId={p.itemId} onAfterAdd={flashAdd} />
+                  </div>
+                </div>
               </article>
             ))}
       </div>
