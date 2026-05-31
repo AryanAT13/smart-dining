@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Zaika PWA icon source — maskable.
+  The "safe zone" for maskable icons is the inner 80% radius; the brand
+  glyph lives inside that circle so adaptive launchers can crop the corners.
+
+  Render with `pnpm icons:generate` to produce icon-192.png and icon-512.png.
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  width="512"
+  height="512"
+  role="img"
+  aria-label="Zaika"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e95f2e" />
+      <stop offset="100%" stop-color="#c93f15" />
+    </linearGradient>
+    <linearGradient id="glyph" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff6e9" />
+      <stop offset="100%" stop-color="#fff" />
+    </linearGradient>
+  </defs>
+
+  <!-- Full bleed background — maskable launchers crop to a circle/squircle. -->
+  <rect width="512" height="512" fill="url(#bg)" />
+
+  <!-- Decorative spark dots, kept inside the safe zone. -->
+  <circle cx="386" cy="142" r="9" fill="#fff" opacity="0.55" />
+  <circle cx="126" cy="378" r="6" fill="#fff" opacity="0.4" />
+  <circle cx="408" cy="368" r="5" fill="#fff" opacity="0.35" />
+
+  <!--
+    Stylised "Z" glyph — top bar, diagonal, bottom bar, plus a subtle
+    plate-mark underline.
+  -->
+  <g fill="url(#glyph)" stroke="none">
+    <!-- Top bar -->
+    <rect x="148" y="156" width="216" height="38" rx="8" />
+    <!-- Diagonal stroke -->
+    <polygon points="316,156 364,156 196,356 148,356" />
+    <!-- Bottom bar -->
+    <rect x="148" y="318" width="216" height="38" rx="8" />
+  </g>
+
+  <!-- Plate underline mark — narrow ellipse hinting at a dining plate. -->
+  <ellipse cx="256" cy="402" rx="78" ry="6" fill="#fff" opacity="0.55" />
+</svg>

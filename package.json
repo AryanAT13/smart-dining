@@ -24,14 +24,19 @@
     "infra:up": "docker compose -f docker-compose.dev.yml up -d",
     "infra:down": "docker compose -f docker-compose.dev.yml down",
     "infra:logs": "docker compose -f docker-compose.dev.yml logs -f",
+    "icons:generate": "tsx scripts/generate-icons.ts",
+    "menu:upload-images": "tsx scripts/upload-menu-images.ts",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.658.1",
     "@types/node": "^20.14.10",
     "eslint": "^8.57.0",
     "prettier": "^3.3.3",
+    "sharp": "^0.33.5",
+    "tsx": "^4.19.0",
     "turbo": "^2.0.6",
     "typescript": "^5.5.3"
   }
