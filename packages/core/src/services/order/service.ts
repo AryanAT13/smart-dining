@@ -50,6 +50,31 @@ export class OrderService {
 
     const phoneHash = hashPhone(input.customerPhone);
 
+    // ----- Order Validation Agent — real check before the transaction --------
+    // Re-fetches cart, revalidates stock, applies business rules, and
+    // returns either a clean summary or a structured rejection with an
+    // LLM-phrased message in the session's language.
+    // orderValidationAgent is deterministic — it pulls cart/menu services
+    // via its own singletons, so no AgentContext is needed.
+    const sessionRow = await this.sessions.getById(input.sessionId);
+    const { orderValidationAgent } = await import('../../agents/orderValidation/index.js');
+    const validation = await orderValidationAgent.invoke({
+      sessionId: input.sessionId,
+      language: (sessionRow.language as 'en' | 'hinglish' | 'telugu-english') ?? 'en',
+    });
+
+    if (!validation.output.ok) {
+      const issues = validation.output.issues;
+      const firstStockIssue = issues.find((i) => i.kind === 'out_of_stock');
+      if (firstStockIssue?.itemName) {
+        throw new StockUnavailableError(firstStockIssue.itemName, 'unknown');
+      }
+      throw new ValidationError(
+        validation.output.message || 'Order failed validation',
+        { issues },
+      );
+    }
+
     const order = await this.db.$transaction(async (tx) => {
       const session = await tx.session.findUnique({ where: { id: input.sessionId } });
       if (!session) throw new NotFoundError('Session', input.sessionId);
@@ -171,6 +196,12 @@ export class OrderService {
       this.publish(channels.table(order.tableId), placedEvent),
       this.publish(channels.kitchen(), placedEvent),
     ]);
+
+    // ---- Kitchen simulator (demo mode only) ----
+    // Schedule auto-progression so the diner sees the status timeline
+    // actually move. In production a real kitchen dashboard drives this.
+    const { scheduleOrderProgression } = await import('./autoProgression.js');
+    scheduleOrderProgression(order.row.id);
 
     return toView(order.row, order.row.items, { visitCount, isReturnVisit });
   }

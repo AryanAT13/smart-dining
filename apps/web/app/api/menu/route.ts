@@ -28,7 +28,12 @@ export const GET = withErrors(async (req) => {
     ? parsed.excludeAllergens.split(',').map((s) => s.trim())
     : undefined;
 
+  // Include unavailable items so the menu UI can grey them out (spec
+  // §4.2 "unavailable items greyed out"). The Recommendation Agent's
+  // own search path passes availableOnly=true separately; this is the
+  // human-visible menu, not the AI candidate set.
   const items = await menuService.list({
+    availableOnly: false,
     ...(categories ? { categories } : {}),
     ...(excludeAllergens ? { excludeAllergens } : {}),
   });
