@@ -30,9 +30,6 @@ export default function HomePage() {
           <Button asChild size="lg" className="tap-target">
             <Link href="/table/T1">Open Table 1</Link>
           </Button>
-          <p className="text-xs text-muted-foreground">
-            (no real QR scan needed — this opens the same flow.)
-          </p>
         </div>
       </main>
     </>
