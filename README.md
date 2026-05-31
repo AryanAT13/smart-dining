@@ -3,8 +3,10 @@
 > Multi-agent AI orchestration over a real-time group ordering platform for restaurants.
 > AI is the primary interaction layer — not a chatbot widget bolted onto a CRUD app.
 
-**Live demo:** _populated after Phase 4 deploy_
-**Walkthrough video:** _populated after Phase 4 deploy_
+**Live demo:** _populated after deploy — see [docs/deploy.md](docs/deploy.md)_
+**Walkthrough video:** _populated after recording — script in [docs/loom-script.md](docs/loom-script.md)_
+
+**👉 [SUBMISSION.md](SUBMISSION.md) — single-page evaluator overview with rubric mapping**
 
 ---
 
@@ -42,9 +44,15 @@ Read these before touching the code — they explain why the shape is what it is
 - [ADR-006](docs/adr/006-three-tier-memory.md) — Working / Session / Long-term memory tiers
 - [ADR-007](docs/adr/007-hand-rolled-dag-over-langgraph.md) — Hand-rolled typed DAG over the LangGraph library
 
-## Agent design
+## Agent design + prompts
 
-[`docs/agent-design.md`](docs/agent-design.md) — what each of the eight agents does, what tools it has, what its prompts look like, and what its eval cases test.
+- [`docs/agent-design.md`](docs/agent-design.md) — what each of the eight agents does, what tools it has, what its prompts look like, and what its eval cases test.
+- [`docs/prompt-examples.md`](docs/prompt-examples.md) — five end-to-end traces: Hinglish RAG, Telugu-English light snack, group order with mixed prefs, post-add upsell, multi-turn preference learning.
+- [`docs/loom-script.md`](docs/loom-script.md) — scene-by-scene 9-minute demo plan.
+
+## Deploy
+
+- [`docs/deploy.md`](docs/deploy.md) — Vercel (web) + Render (gateway + DB + Redis) + Cloudflare R2 (menu images). 30–45 minutes start to finish. Includes smoke tests, rollback steps, and common failure modes.
 
 ## Local development
 
@@ -90,17 +98,21 @@ The whole agent trace for each turn is persisted to `agent_traces` and visible a
 
 | Script              | What it does                                              |
 | ------------------- | --------------------------------------------------------- |
-| `pnpm dev`          | All apps in dev mode (turbo --parallel)                   |
-| `pnpm build`        | Build all apps                                            |
-| `pnpm lint`         | ESLint across the workspace                               |
-| `pnpm typecheck`    | `tsc --noEmit` everywhere                                 |
-| `pnpm test`         | Unit + integration suites                                 |
-| `pnpm eval`         | AI eval suite — golden cases per agent, prints pass-rate  |
-| `pnpm db:migrate`   | Run Prisma migrations                                     |
-| `pnpm db:seed`      | Populate menu + embeddings                                |
-| `pnpm db:studio`    | Open Prisma Studio                                        |
-| `pnpm infra:up`     | Start docker-compose (Postgres, Redis)                    |
-| `pnpm infra:down`   | Stop docker-compose                                       |
+| `pnpm dev`               | All apps in dev mode (turbo --parallel)                |
+| `pnpm build`             | Build all apps                                         |
+| `pnpm lint`              | ESLint across the workspace                            |
+| `pnpm typecheck`         | `tsc --noEmit` everywhere                              |
+| `pnpm test`              | Unit + integration suites (vitest)                     |
+| `pnpm eval`              | AI eval suite — golden cases per agent, prints pass-rate |
+| `pnpm db:migrate`        | Run Prisma migrations (dev)                            |
+| `pnpm db:migrate:deploy` | Run Prisma migrations (CI/prod)                        |
+| `pnpm db:seed`           | Populate menu + embeddings                             |
+| `pnpm db:studio`         | Open Prisma Studio                                     |
+| `pnpm infra:up`          | Start docker-compose (Postgres, Redis)                 |
+| `pnpm infra:down`        | Stop docker-compose                                    |
+| `pnpm icons:generate`    | Render PWA icons from the SVG source                   |
+| `pnpm menu:upload-images`| Upload local menu images to R2, optionally re-sync DB  |
+| `pnpm --filter @smart-dining/web test:e2e` | Playwright smoke (needs dev servers running) |
 
 ## Deployment
 
@@ -108,7 +120,7 @@ The whole agent trace for each turn is persisted to `agent_traces` and visible a
 - **Render** — `render.yaml` is a Blueprint that provisions gateway + Postgres + Key-Value.
 - **Cloudflare R2** — bucket for menu images, set via R2_* env vars.
 
-See [ADR-005](docs/adr/005-render-deployment.md) for the rationale and the deploy runbook.
+See [ADR-005](docs/adr/005-render-deployment.md) for the rationale and **[docs/deploy.md](docs/deploy.md)** for the step-by-step runbook (Vercel + Render + R2 + Twilio + LangSmith).
 
 ## Repository layout
 
@@ -118,7 +130,7 @@ smart-dining/
 │   ├── web/          Next.js 14 App Router PWA, SSE streaming, Zustand + TanStack Query
 │   └── gateway/      Socket.io server with Redis adapter — runs on Render
 ├── packages/
-│   ├── core/         Agents, orchestrator (LangGraph), tools, services, Prisma client
+│   ├── core/         Agents (8), orchestrator (typed DAG), tools (9 w/ ACL), services (6), Prisma
 │   └── shared/       Types-only package: event schemas, intents, DTOs (zero runtime deps)
 ├── docs/
 │   ├── adr/          Architecture Decision Records
@@ -140,7 +152,7 @@ This README is alive — sections fill in as phases land. Current phase: **1 (en
 | 1     | End-to-end skeleton: menu, cart, WS sync, OTP, order         | done   |
 | 2     | AI core: 8 agents, orchestrator, RAG, SSE streaming, upsell  | done   |
 | 3     | /debug/trace UI, eval harness, long-term memory, AI Pick, e2e | done   |
-| 4     | Deploy, Loom walkthrough, submission package                 | next   |
+| 4     | Deploy runbook, Loom script, prompt examples, submission docs | done   |
 
 ## AI surface (Phase 2)
 
