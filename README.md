@@ -5,7 +5,7 @@
 > Multi-agent AI orchestration over a real-time group ordering platform for restaurants.
 > AI is the primary interaction layer — not a chatbot widget bolted onto a CRUD app.
 
-[**Demo Video:**](https://drive.google.com/file/d/1coOUvco5PemfuPt4_Xrz9LFL3z5h4lNt/view?usp=sharing)
+[**Demo Video**](https://drive.google.com/file/d/1coOUvco5PemfuPt4_Xrz9LFL3z5h4lNt/view?usp=sharing)
 
 
 **👉 [SUBMISSION.md](SUBMISSION.md) — single-page evaluator overview with rubric mapping**
