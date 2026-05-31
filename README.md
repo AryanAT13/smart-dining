@@ -43,6 +43,7 @@ Read these before touching the code — they explain why the shape is what it is
 - [ADR-005](docs/adr/005-render-deployment.md) — Render for backend infrastructure
 - [ADR-006](docs/adr/006-three-tier-memory.md) — Working / Session / Long-term memory tiers
 - [ADR-007](docs/adr/007-hand-rolled-dag-over-langgraph.md) — Hand-rolled typed DAG over the LangGraph library
+- [ADR-008](docs/adr/008-ui-overhaul-and-spec-gaps.md) — UI overhaul + spec-coverage gaps (Phase 5)
 
 ## Agent design + prompts
 
@@ -153,6 +154,7 @@ This README is alive — sections fill in as phases land. Current phase: **1 (en
 | 2     | AI core: 8 agents, orchestrator, RAG, SSE streaming, upsell  | done   |
 | 3     | /debug/trace UI, eval harness, long-term memory, AI Pick, e2e | done   |
 | 4     | Deploy runbook, Loom script, prompt examples, submission docs | done   |
+| 5     | UI overhaul: chat text, stepper, 6 upsells, tracking, dock   | done   |
 
 ## AI surface (Phase 2)
 
