@@ -45,6 +45,13 @@ const nextConfig = {
     // !! WARN !!
     ignoreBuildErrors: true,
   },
+  transpilePackages: ["@smart-dining/core"],
+  // 2. Tell the Next.js bundler to strictly include the Prisma engine binaries
+  serverExternalPackages: ["@prisma/client", "prisma"],
+  experimental: {
+    // Fallback just in case you are on an older Next.js 13 version
+    serverComponentsExternalPackages: ["@prisma/client", "prisma"],
+  },
   // PWA-style headers — service worker + manifest are public; everything else
   // is HTML/JS that Next handles.
   async headers() {
